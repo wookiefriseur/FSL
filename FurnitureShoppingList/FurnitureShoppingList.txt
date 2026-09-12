@@ -2,7 +2,7 @@
 ## Description: It makes a shopping list.
 ## Version 1.4.11
 ## Author: @noobanidus
-## APIVersion: 100031
+## APIVersion: 101050 101049
 ## DependsOn: LibCustomMenu
 
 Strings.lua
