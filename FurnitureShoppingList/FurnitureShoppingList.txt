@@ -4,6 +4,7 @@
 ## Author: @noobanidus
 ## APIVersion: 101050 101049
 ## DependsOn: LibCustomMenu
+## OptionalDependsOn: LibFurnitureCatalogue
 
 Strings.lua
 Bindings.xml

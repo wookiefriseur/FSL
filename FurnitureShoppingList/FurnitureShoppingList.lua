@@ -1,7 +1,7 @@
 ﻿-- Code derived from GodSendPlus, originally by Focus (MIT License).
 
 local ADDON_NAME = "FurnitureShoppingList"
-local ADDON_VERSION = "1.2.1"
+local ADDON_VERSION = "1.2.1" --TODO: auto-generate from pipeline
 
 local SL_WINDOW = nil
 SL_RECIPIENTS = nil
@@ -18,6 +18,31 @@ local FurnitureShoppingListRecipients = ZO_SortFilterList:Subclass()
 FurnitureShoppingListData = {}
 FurnitureShoppingListDataLookup = {}
 
+local function getIngredients (itemLink, recipeArray)
+    if not (LibFurnitureCatalogue and LibFurnitureCatalogue.API) then
+        CHAT_SYSTEM:AddMessage(GetString(FSL_REQUIRES_FC))
+        return nil
+    end
+
+    local LFC = LibFurnitureCatalogue.API
+
+    recipeArray = recipeArray or LFC.GetEntry(itemLink)
+    local ingredients = recipeArray and LFC.GetIngredients(itemLink, recipeArray)
+
+    if not LFC.IsReady() then
+        CHAT_SYSTEM:AddMessage(GetString(FSL_DB_NOT_READY))
+        return nil
+    end
+
+    if not ingredients or nil == next(ingredients) then
+        CHAT_SYSTEM:AddMessage(GetString(FSL_NOT_VALID_ITEM))
+        return nil
+    end
+
+    return ingredients
+end
+
+--TODO: use LibPrice?
 local function getMM (itemLink)
     if not MasterMerchant then return 0 end
 
@@ -29,7 +54,7 @@ end
 
 function FurnitureShoppingListWindow:New(control)
 	local manager = ZO_Object.New(self)
-	
+
 	manager.control = control
 
     return manager
@@ -37,12 +62,12 @@ end
 
 function FurnitureShoppingListRecipients:New(control)
 	local manager = ZO_SortFilterList.New(self, control)
-	
+
 	ZO_ScrollList_AddDataType(manager.list, 1, "FurnitureShoppingListRecipientsRow", 30, function(control, data) manager:SetupRow(control, data) end)
 	ZO_ScrollList_EnableHighlight(manager.list, "ZO_ThinListHighlight")
-	
+
 	manager:SetAlternateRowBackgrounds(true)
-	
+
 	manager.control = control
 
     manager.mm = GetControl(control, "MM")
@@ -50,19 +75,19 @@ function FurnitureShoppingListRecipients:New(control)
     control.container = manager
 	manager.masterList = {}
 	manager.sortHeaderGroup:SelectHeaderByKey("id")
-	
+
 	return manager
 end
 
 function FurnitureShoppingListRecipients:SetupRow(control, data)
 	ZO_SortFilterList.SetupRow(self, control, data)
-	
+
 	control:SetHandler("OnMouseUp", function(control, button, upInside, linkText) self:OnRowMouseUp(control, button, upInside, linkText) end)
-	
+
 	GetControl(control, "Name"):SetText(data.name)
 	GetControl(control, "Need"):SetText(data.need)
     GetControl(control, "Price"):SetText(data.price)
-	
+
 end
 
 function FurnitureShoppingListRecipients:BuildMasterList()
@@ -80,7 +105,7 @@ function FurnitureShoppingListRecipients:BuildMasterList()
             table.insert(self.masterList, {name=name, need=need, price=this_row})
         end
 	end
-	 
+
 		self.mm:SetText((nil ~= MasterMerchant and "MM: " .. mm_total .. "g") or "")
 end
 
@@ -115,7 +140,7 @@ function FurnitureShoppingListWindow_Toggle()
     SL_WINDOW.control:SetHidden(not SL_WINDOW.control:IsHidden())
 end
 
-function FurnitureShoppingListRecipientsRow_OnMouseEnter(control)	
+function FurnitureShoppingListRecipientsRow_OnMouseEnter(control)
 	SL_RECIPIENTS:EnterRow(control)
 end
 
@@ -128,14 +153,14 @@ function FurnitureShoppingListLabelField_OnMouseEnter(control)
 		InitializeTooltip(InformationTooltip, control, BOTTOM, 0, 0)
 		SetTooltipText(InformationTooltip, control:GetText())
 	end
-	
+
 	local row = control:GetParent()
 	zo_callHandler(row, "OnMouseEnter")
 end
 
 function FurnitureShoppingListLabelField_OnMouseExit(control)
 	ClearTooltip(InformationTooltip)
-	
+
 	local row = control:GetParent()
 	zo_callHandler(row, "OnMouseExit")
 end
@@ -146,7 +171,7 @@ end
 
 function FurnitureShoppingListLabelField_OnLinkMouseUp(control, button, linkText)
 	ZO_LinkHandler_OnLinkMouseUp(linkText, button, control)
-	
+
 	local row = control:GetParent()
 	zo_callHandler(row, "OnMouseUp", button, true, linkText)
 end
@@ -183,18 +208,9 @@ function FurnitureShoppingList_RemoveOwn_OnClicked (control)
 end
 
 function FurnitureShoppingListAdd(itemLink, recipeArray)
-    if not FurC then
-        CHAT_SYSTEM:AddMessage(GetString(FSL_REQUIRES_FC))
-        return
-    end
-	
-	recipeArray = recipeArray or FurC.Find(itemLink)
-	local ingredients = FurC.GetIngredients(itemLink, recipeArray)
-	
-    if not recipeArray or not ingredients or {} == ingredients then
-        CHAT_SYSTEM:AddMessage(GetString(FSL_NOT_VALID_ITEM))
-        return
-    end
+    local ingredients = getIngredients(itemLink, recipeArray)
+
+    if not ingredients then return end
 
     for mat, cost in pairs(ingredients) do
         local n = zo_strformat("<<t:1>>", GetItemLinkName(mat))
@@ -212,18 +228,9 @@ function FurnitureShoppingListAdd(itemLink, recipeArray)
 end
 
 function FurnitureShoppingListDel(itemLink)
-    if not FurC then
-        CHAT_SYSTEM:AddMessage(GetString(FSL_REQUIRES_FC))
-        return
-    end
+    local ingredients = getIngredients(itemLink)
 
-    local recipeArray = FurC.Find(itemLink)
-	local ingredients = FurC.GetIngredients(itemLink, recipeArray)
-	
-    if not recipeArray or not ingredients or {} == ingredients then
-        CHAT_SYSTEM:AddMessage(GetString(FSL_NOT_VALID_ITEM))
-        return
-    end
+    if not ingredients then return end
 
     for mat, cost in pairs(ingredients) do
         local n = GetItemLinkName(mat)
@@ -257,7 +264,7 @@ function FurnitureShoppingList_Print_OnClicked(control)
 
     if #s > MAX_TEXT_CHAT_INPUT_CHARACTERS then
         if SCENE_MANAGER:IsShowing("mailSend") then
-            -- then check the 
+            -- then check the
             if MAIL_SEND.body:GetText() ~= "" then
                 CHAT_SYSTEM:AddMessage(GetString(FSL_OUTPUT_TOO_LONG))
             else
@@ -302,9 +309,9 @@ end
 
 local function OnAddonLoaded(eventCode, addonName)
 	if addonName ~= (ADDON_NAME) then return end
-	
+
 	SLASH_COMMANDS["/sl"] = FurnitureShoppingListWindow_Toggle
-	
+
 	EVENT_MANAGER:UnregisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED)
 
     -- stolen magic!!!
@@ -324,7 +331,7 @@ local function OnAddonLoaded(eventCode, addonName)
 			end
 		end
 	end
-   
+
     ZO_PreHook("ZO_InventorySlot_ShowContextMenu", function (rowControl) SL_WINDOW:InventorySlot_ShowContextMenu(rowControl) end)
 
     local strip = {
@@ -333,7 +340,7 @@ local function OnAddonLoaded(eventCode, addonName)
         -- Add 1 to list
         {
             name = GetString(FSL_KB_ADD),
-            
+
             callback = function() FurnitureShoppingListAdd_Crafting() end,
 
             keybind = "SL_ADD",
@@ -356,7 +363,7 @@ local function OnAddonLoaded(eventCode, addonName)
             end,
         },
     }
-      
+
     PROVISIONER_FRAGMENT:RegisterCallback("StateChange", function (oldState, newState)
         if newState == SCENE_SHOWN then
             KEYBIND_STRIP:AddKeybindButtonGroup(strip)
