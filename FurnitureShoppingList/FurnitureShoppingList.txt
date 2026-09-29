@@ -2,7 +2,7 @@
 ## Description: It makes a shopping list.
 ## Version 1.4.11
 ## Author: @noobanidus
-## APIVersion: 101050 101049
+## APIVersion: 101051 101052
 ## DependsOn: LibCustomMenu
 ## OptionalDependsOn: LibFurnitureCatalogue
 
