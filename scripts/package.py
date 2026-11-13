@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import shutil
+import zipfile
+
+import furc_utils as FU
+
+"""
+Generates package for release. Use standalone or in automated workflow.
+Run from project root, not from inside this folder.
+Does not sanitise user input, so use only with trusted input.
+"""
+
+PACKAGE_DIR = '.package' # package folder, will be deleted if it already exists
+ADDON_NAME = 'FurnitureCatalogue'
+
+EXCLUDE_DIRS = ('test',) # don't package tests
+
+def find_manifests(directory: str, file_ext: ...) -> list[str]:
+  """Returns list with potential manifest files"""
+  manifests = []
+  directory = os.path.normpath(directory)
+  try:
+    for root, dirs, files in os.walk(directory):
+      # skip hidden files and folders
+      files = [f for f in files if not f[0] == '.']
+      dirs[:] = [d for d in dirs if not d[0] == '.']
+      for source in files:
+        if source.endswith(file_ext):
+          manifests.append(os.path.join(root, source))
+  except Exception:
+    return []
+
+  return manifests
+
+def package_addon(name: str, exclude_filename: str):
+  """Copies select files to package directory. Creates zip archive for release.
+
+  Args:
+      name (_type_): AddOn title for version and name of archive
+      exclude_filename (_type_): File name to be excluded from the package.
+  """
+
+  addon_name = name or ADDON_NAME
+  addon_version = ''
+
+  # Clear preexisting package, to catch cases in which it was created in a different way
+  if os.path.exists(PACKAGE_DIR):
+    shutil.rmtree(PACKAGE_DIR)
+
+  files_to_copy = []
+  found_manifests = find_manifests('.', (FU.EXT_MF_ESO, FU.EXT_MF_ADDITIONAL))
+  print(f"{len(found_manifests)} manifest files checked")
+  # parse all files mentioned in detected AddOn manifests
+  for manifest in found_manifests:
+    manifest_data = FU.get_manifest_data(manifest)
+    # Only package what the game can load: needs Title and APIVersion.
+    # Skips test manifests like FurnitureCatalogue_DevUtility/test/headless.txt, which is a fake header for Taneth
+    if manifest_data[FU.PROP_MF_TYPE] == FU.TYPE_MF_ESO and not (
+        manifest_data[FU.PROP_MF_TITLE] and manifest_data.get(FU.PROP_MF_APIVERSION)):
+      print(f"not an AddOn manifest, skipped: {manifest}")
+      continue
+    if not addon_version and manifest_data[FU.PROP_MF_TITLE] == addon_name:
+      addon_version = manifest_data[FU.PROP_MF_VERSION]
+    files_to_copy.extend(manifest_data[FU.PROP_MF_FILES])
+
+    # Add the ESO manifest files themselves as well
+    if manifest_data[FU.PROP_MF_TYPE] == FU.TYPE_MF_ESO:
+      print(f"detected: {manifest_data[FU.PROP_MF_TITLE]}@v{manifest_data[FU.PROP_MF_VERSION]}")
+      files_to_copy.append(manifest)
+
+  # copy files
+  addon_dir = os.path.normpath(os.path.join(PACKAGE_DIR, addon_name))
+  expected = set() # paths that have to end up under addon_dir
+  failures = [] # (source, error) pairs
+  excluded = 0
+  for source in files_to_copy:
+    # skip excluded filenames
+    if os.path.basename(source) == exclude_filename: continue
+    source = os.path.normpath(source)
+    if set(os.path.dirname(source).split(os.sep)) & set(EXCLUDE_DIRS):
+      excluded += 1
+      continue
+    expected.add(source)
+    try:
+      target = os.path.normpath(os.path.join(addon_dir, source))
+      os.makedirs(os.path.dirname(target), exist_ok=True) # Create target directory
+      shutil.copy(source, target)
+    except Exception as ex:
+      failures.append((source, ex))
+
+  if failures:
+    for source, ex in failures:
+      print(f"failed to copy: {source}: {ex}")
+    FU.crash_and_burn(f"{len(failures)} file(s) failed to copy, aborting packaging")
+
+  # a copy can report success and land nothing, so compare the tree against the list
+  actual = set()
+  for root, _, files in os.walk(addon_dir):
+    for file in files:
+      actual.add(os.path.normpath(os.path.relpath(os.path.join(root, file), addon_dir)))
+
+  if actual != expected:
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    detail = []
+    if missing: detail.append(f"missing from package: {missing}")
+    if extra: detail.append(f"unexpected in package: {extra}")
+    FU.crash_and_burn(f"packaged files do not match what was copied ({'; '.join(detail)})")
+
+  print(f"added {len(expected)}/{len(files_to_copy)} files")
+  if excluded:
+    print(f"kept out of the package: {excluded} files in {'/, '.join(EXCLUDE_DIRS)}/")
+
+  # zip it
+  archive = f"{addon_name}-{addon_version}.zip"
+  if not addon_version:
+    FU.crash_and_burn('version was not set, aborting packaging')
+
+  with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as zf:
+    for root, _, files in os.walk(addon_dir):
+      for file in files:
+        src_file = os.path.join(root, file)
+        target_file = src_file.replace(PACKAGE_DIR, '')
+        zf.write(src_file, arcname=target_file)
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description="Package AddOn for release")
+  parser.add_argument('--name', help='AddOn title for version and zip name', default=ADDON_NAME)
+  parser.add_argument('--exclude_filename', help='Will be excluded from package', default="")
+  args = parser.parse_args()
+
+  package_addon(args.name, args.exclude_filename)
