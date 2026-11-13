@@ -4,9 +4,9 @@ name: FinalizeRelease
 # 1. PrepareRelease      - prepare_release.yml (opens the release/<version> PR)
 # 2. 📍FinalizeRelease   - finalize_release.yml
 # 3. PublishToESOUI      - publish_to_esoui.yml
-# Refer to CONTRIBUTING.md for more info.
+# Refer to README.md for more info.
 
-# Triggered when release/<version> PR is merged into master.
+# Triggered when release/<version> PR is merged into main.
 # Packages AddOn, creates version tag, creates a GitHub release with the zip attached.
 # Starts PublishToESOUI to upload that release to ESOUI
 
@@ -16,7 +16,7 @@ permissions:
 on:
   pull_request:
     types: [closed]
-    branches: [master]
+    branches: [main]
 
 jobs:
   # Only react to merged release PRs from release/*
@@ -29,10 +29,10 @@ jobs:
     outputs:
       published: ${{ steps.gate.outputs.SKIP != 'true' }}
     steps:
-      - name: Checkout master (post-merge)
+      - name: Checkout main (post-merge)
         uses: actions/checkout@v6
         with:
-          ref: master
+          ref: main
           fetch-depth: 0
 
       - uses: ./.github/actions/configure-bot
@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
           # Cross-check against the manifest.
-          MANIFEST_VERSION="$(python .scripts/furc_utils.py manifestversion FurnitureCatalogue.txt)"
+          MANIFEST_VERSION="$(python scripts/furc_utils.py manifestversion FurnitureShoppingList/FurnitureShoppingList.txt)"
           if [[ "$NEXT" != "$MANIFEST_VERSION" ]]; then
             echo "🔥 Branch says $NEXT, manifest says $MANIFEST_VERSION. Aborting mismatched release." >&2
             exit 1
@@ -74,7 +74,7 @@ jobs:
         if: steps.gate.outputs.SKIP != 'true'
         id: pkg
         run: |
-          python .scripts/package.py
+          python scripts/package.py
           ARCHIVE="$(ls -1 *.zip | head -1)"
           test -s "$ARCHIVE" || { echo "🔥 package.py produced no zip" >&2; exit 1; }
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_OUTPUT"
@@ -103,13 +103,13 @@ jobs:
           NOTES_FILE="$(mktemp)"
           printf '%s' "$PR_BODY" > "$NOTES_FILE"
           gh release create "$NEXT" "$ARCHIVE" \
-            --target master \
+            --target main \
             --title "Version $NEXT" \
             --notes-file "$NOTES_FILE"
           {
             echo "## ✅ Released $NEXT"
             echo ""
-            echo "- Tag: \`$NEXT\` (forced to current master HEAD)"
+            echo "- Tag: \`$NEXT\` (forced to current main HEAD)"
             echo "- Asset: \`$ARCHIVE\`"
             echo "- Next: **PublishToESOUI** auto-runs. If it fails: re-run it or upload \`$ARCHIVE\` (attached to this release) to ESOUI by hand"
           } >> "$GITHUB_STEP_SUMMARY"

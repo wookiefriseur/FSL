@@ -8,29 +8,27 @@ import zipfile
 import furc_utils as FU
 
 """
-Generates package for release. Use standalone or in automated workflow.
+Generates package for release.
 Run from project root, not from inside this folder.
-Does not sanitise user input, so use only with trusted input.
 """
 
-PACKAGE_DIR = '.package' # package folder, will be deleted if it already exists
-ADDON_NAME = 'FurnitureCatalogue'
+PACKAGE_DIR = '.package' # local build folder, also where build.sh keeps its zips
+BUILD_DIR = os.path.join(PACKAGE_DIR, 'build') # staging tree, deleted on every run
+ADDON_NAME = 'FurnitureShoppingList'
 
-EXCLUDE_DIRS = ('test',) # don't package tests
-
-def find_manifests(directory: str, file_ext: ...) -> list[str]:
+def find_manifests(directory: str, file_ext: tuple[str, ...]) -> list[str]:
   """Returns list with potential manifest files"""
   manifests = []
   directory = os.path.normpath(directory)
   try:
     for root, dirs, files in os.walk(directory):
       # skip hidden files and folders
-      files = [f for f in files if not f[0] == '.']
-      dirs[:] = [d for d in dirs if not d[0] == '.']
+      files = [f for f in files if f[0] != '.']
+      dirs[:] = [d for d in dirs if d[0] != '.']
       for source in files:
         if source.endswith(file_ext):
           manifests.append(os.path.join(root, source))
-  except Exception:
+  except Exception:  # noqa: BLE001
     return []
 
   return manifests
@@ -46,49 +44,52 @@ def package_addon(name: str, exclude_filename: str):
   addon_name = name or ADDON_NAME
   addon_version = ''
 
-  # Clear preexisting package, to catch cases in which it was created in a different way
-  if os.path.exists(PACKAGE_DIR):
-    shutil.rmtree(PACKAGE_DIR)
+  # Clear preexisting staging tree, to catch cases in which it was created in a different way
+  if os.path.exists(BUILD_DIR):
+    shutil.rmtree(BUILD_DIR)
 
-  files_to_copy = []
+  files_to_copy = [] # (source path, path inside the packaged AddOn)
   found_manifests = find_manifests('.', (FU.EXT_MF_ESO, FU.EXT_MF_ADDITIONAL))
   print(f"{len(found_manifests)} manifest files checked")
   # parse all files mentioned in detected AddOn manifests
   for manifest in found_manifests:
     manifest_data = FU.get_manifest_data(manifest)
+    manifest_dir = os.path.dirname(manifest) or '.'
     # Only package what the game can load: needs Title and APIVersion.
-    # Skips test manifests like FurnitureCatalogue_DevUtility/test/headless.txt, which is a fake header for Taneth
+    # Skips scripts/requirements.txt (no header) and test manifests like headless.txt (fake header for Taneth, but not an AddOn)
     if manifest_data[FU.PROP_MF_TYPE] == FU.TYPE_MF_ESO and not (
         manifest_data[FU.PROP_MF_TITLE] and manifest_data.get(FU.PROP_MF_APIVERSION)):
       print(f"not an AddOn manifest, skipped: {manifest}")
       continue
     if not addon_version and manifest_data[FU.PROP_MF_TITLE] == addon_name:
       addon_version = manifest_data[FU.PROP_MF_VERSION]
-    files_to_copy.extend(manifest_data[FU.PROP_MF_FILES])
+    # manifest entries are relative to the manifest, the packaged AddOn mirrors that layout
+    files_to_copy.extend((f, os.path.relpath(f, manifest_dir)) for f in manifest_data[FU.PROP_MF_FILES])
 
     # Add the ESO manifest files themselves as well
     if manifest_data[FU.PROP_MF_TYPE] == FU.TYPE_MF_ESO:
       print(f"detected: {manifest_data[FU.PROP_MF_TITLE]}@v{manifest_data[FU.PROP_MF_VERSION]}")
-      files_to_copy.append(manifest)
+      files_to_copy.append((manifest, os.path.relpath(manifest, manifest_dir)))
+      # the MIT licence of the original code has to ship with it, but is not a manifest entry
+      licence = os.path.join(manifest_dir, 'LICENSE')
+      if os.path.isfile(licence):
+        files_to_copy.append((licence, 'LICENSE'))
 
   # copy files
-  addon_dir = os.path.normpath(os.path.join(PACKAGE_DIR, addon_name))
-  expected = set() # paths that have to end up under addon_dir
+  addon_dir = os.path.normpath(os.path.join(BUILD_DIR, addon_name))
+  expected = set() # relative paths that should end up under addon_dir
   failures = [] # (source, error) pairs
-  excluded = 0
-  for source in files_to_copy:
+  for source, packaged in files_to_copy:
     # skip excluded filenames
     if os.path.basename(source) == exclude_filename: continue
     source = os.path.normpath(source)
-    if set(os.path.dirname(source).split(os.sep)) & set(EXCLUDE_DIRS):
-      excluded += 1
-      continue
-    expected.add(source)
+    packaged = os.path.normpath(packaged)
+    expected.add(packaged)
     try:
-      target = os.path.normpath(os.path.join(addon_dir, source))
+      target = os.path.normpath(os.path.join(addon_dir, packaged))
       os.makedirs(os.path.dirname(target), exist_ok=True) # Create target directory
       shutil.copy(source, target)
-    except Exception as ex:
+    except Exception as ex:  # noqa: BLE001
       failures.append((source, ex))
 
   if failures:
@@ -99,8 +100,7 @@ def package_addon(name: str, exclude_filename: str):
   # a copy can report success and land nothing, so compare the tree against the list
   actual = set()
   for root, _, files in os.walk(addon_dir):
-    for file in files:
-      actual.add(os.path.normpath(os.path.relpath(os.path.join(root, file), addon_dir)))
+    actual.update(os.path.normpath(os.path.relpath(os.path.join(root, file), addon_dir)) for file in files)
 
   if actual != expected:
     missing = sorted(expected - actual)
@@ -111,8 +111,6 @@ def package_addon(name: str, exclude_filename: str):
     FU.crash_and_burn(f"packaged files do not match what was copied ({'; '.join(detail)})")
 
   print(f"added {len(expected)}/{len(files_to_copy)} files")
-  if excluded:
-    print(f"kept out of the package: {excluded} files in {'/, '.join(EXCLUDE_DIRS)}/")
 
   # zip it
   archive = f"{addon_name}-{addon_version}.zip"
@@ -123,7 +121,7 @@ def package_addon(name: str, exclude_filename: str):
     for root, _, files in os.walk(addon_dir):
       for file in files:
         src_file = os.path.join(root, file)
-        target_file = src_file.replace(PACKAGE_DIR, '')
+        target_file = src_file.replace(BUILD_DIR, '')
         zf.write(src_file, arcname=target_file)
 
 if __name__ == '__main__':

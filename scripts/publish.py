@@ -3,8 +3,8 @@
 import argparse
 import json
 
-import furc_utils as FU
 import esoui_utils as EU
+import furc_utils as FU
 
 """Perform all steps required for Publishing.
     - get AddOn data from manifest
@@ -14,35 +14,27 @@ import esoui_utils as EU
     - get truncated version of CHANGELOG
 """
 
-ADDON_ID = 1617
-ADDON_MANIFEST_FILE = 'FurnitureCatalogue.txt'
+ADDON_ID = EU.ADDON_ID
+ADDON_MANIFEST_FILE = EU.ADDON_MANIFEST_FILE
 
 ARCHIVE_MIN_SIZE_IN_BYTES = 1024
-"""Minimum size in bytes the archive needs for a release
-  For orientation a test with max zip compression:
-    - no database
-    - no textures
-    - no embedded AddOns (Devtools, Exporter)
-    - most lua files missing
-    - added only:
-        1. FurnitureCatalogue.txt
-        2. Main xml files
-        3. all locale files
-        4. Startup.lua, FurCEvents.lua, FurCUtil.lua
+"""Minimum size in bytes the archive needs for a release.
 
-  `Result: 40960 bytes`
+  Regular zip (manifest, Lua, XML, LICENSE) is ~6 KB,
+  anything near 1 KB means packaging went wrong.
 """
 
 CL_LIVE_MAX_ENTRIES = 15
 CL_LIVE_HEADER_DELIM = '---'
-CL_LIVE_HEADER_DEFAULT =f'''If you don't find change notes, it's because it's Luxury Furnisher. Booooring.
+CL_LIVE_HEADER_DEFAULT =f'''If you don't find change notes, it's because nothing user-facing changed.
 
-Speaking of boring: if you're really bored you can find the full changelog [URL="https://github.com/manavortex/FurnitureCatalogue/blob/master/{FU.CL_FILE}"]here[/URL] and all undocumented changes [URL="https://github.com/manavortex/FurnitureCatalogue/commits/master"]here[/URL].
+Speaking of boring: if you're really bored you can find the full changelog [URL="https://github.com/wookiefriseur/FSL/blob/main/{FU.CL_FILE}"]here[/URL] and all undocumented changes [URL="https://github.com/wookiefriseur/FSL/commits/main"]here[/URL].
 '''
 
 RELEASE_NOTE_DELIM = "[//]:"
 
-def publish_to_esoui(optional_params: dict = {}):
+def publish_to_esoui(optional_params: dict | None = None):
+  optional_params = optional_params or {}
   manifest = FU.get_manifest_data(ADDON_MANIFEST_FILE)
 
   # Get AddOn details from API
@@ -61,8 +53,8 @@ def publish_to_esoui(optional_params: dict = {}):
   # Get content of zip file, abort if too smol
   try:
     archivename = f"{manifest[FU.PROP_MF_TITLE]}-{manifest[FU.PROP_MF_VERSION]}.zip"
-    archive_content = FU.file_to_binary_string(optional_params['archive_file'] or archivename)
-  except Exception:
+    archive_content = FU.file_to_binary_string(optional_params.get('archive_file') or archivename)
+  except Exception:  # noqa: BLE001
     FU.crash_and_burn('no zip, no live')
 
   if len(archive_content) < ARCHIVE_MIN_SIZE_IN_BYTES:
@@ -78,21 +70,16 @@ def publish_to_esoui(optional_params: dict = {}):
   new_kids_on_the_log = [esoui_cl_comment]
 
   # Pick latest x changes to show in the ESOUI CL
-  changelog_file = optional_params['changelog_file'] or FU.CL_FILE
-  max_entries = optional_params['changelog_max_entries'] or CL_LIVE_MAX_ENTRIES
+  changelog_file = optional_params.get('changelog_file') or FU.CL_FILE
+  max_entries = optional_params.get('changelog_max_entries') or CL_LIVE_MAX_ENTRIES
   new_kids_on_the_log.extend(FU.get_log_entries(changelog_file, max_entries))
   body[EU.PROP_LIVE_CHANGELOG] = '\n'.join(new_kids_on_the_log)
 
-  response = EU.send_update_request(body, archivename)
-  print(f"Done, received status code: {response.get('status', '0')}")
-  if optional_params['print_response']:
+  test = bool(optional_params.get('test'))
+  response = EU.send_update_request(body, archivename, test)
+  print(f"Done{' (simulated, nothing published)' if test else ''}, received status code: {response.get('status', '0')}")
+  if optional_params.get('print_response'):
     print(json.dumps(response, indent=2))
-
-  # todo-maybe: (only for fully automated PR->Release cycles)
-  #      - verify that the changes are live (add optional --verify flag to this script)
-  #      - crash here to alert maintainers if something went wrong
-  #      - compare zip file hashes or at least sizes
-
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Publish a new release.')
@@ -100,6 +87,7 @@ if __name__ == '__main__':
   parser.add_argument('--changelog-max-entries', type=int, help='Send only the latest X entries to the ESOUI changelog')
   parser.add_argument('--archive-file', help='Path to the release archive file')
   parser.add_argument('--print-response', action='store_true', default=False,  help='Prints the full ESOUI response to the terminal')
+  parser.add_argument('--test', action='store_true', default=False, help='Send to the ESOUI /updatetest endpoint: simulates the upload, publishes nothing')
 
   params = {}
   args = parser.parse_args()
@@ -107,9 +95,10 @@ if __name__ == '__main__':
   params['changelog_max_entries'] = args.changelog_max_entries
   params['archive_file'] = args.archive_file
   params['print_response'] = args.print_response
+  params['test'] = args.test
 
   try:
     publish_to_esoui(params)
-  except Exception as ex:
+  except Exception as ex:  # noqa: BLE001
     # Abort for safety reasons
     FU.crash_and_burn(f"Error: {ex}")

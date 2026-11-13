@@ -26,7 +26,8 @@ Both PublishToESOUI and `build.sh --publish` support an optional `dry_run` flag,
 
 - `scripts/build.sh`: local equivalent of the GitHub pipeline, zips land in `.package/`
 - `scripts/stylua.sh`: formatting with the exact StyLua version CI uses
-- `scripts/utils.py`: version, manifest and changelog helpers used by the workflows
+- `scripts/furc_utils.py`: version, manifest and changelog helpers used by the workflows
+- `scripts/package.py`, `scripts/publish.py`, `scripts/esoui_utils.py`: packaging and the ESOUI upload
 
 
 ## Tests
@@ -36,4 +37,4 @@ Both PublishToESOUI and `build.sh --publish` support an optional `dry_run` flag,
 
 ## Local setup
 
-`lua` and `luac` (or symlinks) go in `bin/`, which is gitignored. `../bin` next to the repo also works. Override with `LUAC` and `LUA`, in the environment or in `.env` at the repo root (tools and tests both read those). See `scripts/env.example`.
+`lua` and `luac` (or symlinks) go in `bin/`, which is gitignored. `../bin` next to the repo also works. Override with `LUAC` and `LUA`, in the environment or in `.env` at the repo root. `.env` also takes `ESOUI_API_TOKEN` and `PYTHON3_BIN` for `scripts/build.sh`.

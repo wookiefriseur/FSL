@@ -1,7 +1,6 @@
 name: PRChecks
 
 # PR can still merge if a job fails, but the red X is visible.
-# Branch protection on master can be set to make it blocking.
 # PrepareRelease also runs this at release time. Running on PRs just catches problems earlier.
 
 permissions:
@@ -9,7 +8,7 @@ permissions:
 
 on:
   pull_request:
-    branches: [dev, master]
+    branches: [main]
 
 jobs:
   stylua-check:
@@ -29,8 +28,7 @@ jobs:
         uses: actions/checkout@v6
       - uses: ./.github/actions/setup-python-env
       - name: Parse manifest
-      # TODO: if change from "*.txt" to "*.addon", change here too
-        run: python .scripts/furc_utils.py validatemanifest FurnitureCatalogue.txt
+        run: python scripts/furc_utils.py validatemanifest FurnitureShoppingList/FurnitureShoppingList.txt
 
   package-dryrun:
     runs-on: ubuntu-latest
@@ -40,7 +38,7 @@ jobs:
       - uses: ./.github/actions/setup-python-env
       - name: Build zip and list contents
         run: |
-          python .scripts/package.py
+          python scripts/package.py
           ZIP="$(ls -1 *.zip | head -1)"
           {
             echo "## Package contents (\`$ZIP\`)"
@@ -49,3 +47,4 @@ jobs:
             unzip -l "$ZIP"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+

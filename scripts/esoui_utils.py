@@ -3,16 +3,19 @@
 import argparse
 import json
 import os
+import typing
+
 import requests
 
 """ESOUI API related utilities.
 
-Refer to api_esoui.yml for definitions. You can preview it like (might have to change path to .yml in the URL):
-https://petstore.swagger.io/?url=https://raw.githubusercontent.com/manavortex/FurnitureCatalogue/master/.scripts/esoui_api.yml
+API reference: https://api.esoui.com
 """
 
-ADDON_ID = 1617
-ADDON_MANIFEST_FILE = 'FurnitureCatalogue.txt'
+ADDON_ID = 1865
+"""FurnitureShoppingList on ESOUI, see https://www.esoui.com/downloads/info1865.html"""
+
+ADDON_MANIFEST_FILE = 'FurnitureShoppingList/FurnitureShoppingList.txt'
 
 API_BASE = os.getenv("ESOUI_API_BASE", "https://api.esoui.com/addons")
 
@@ -21,23 +24,28 @@ PROP_LIVE_VERSION = 'version'
 PROP_LIVE_CHANGELOG = 'changelog'
 PROP_LIVE_COMPATIBLE = 'compatible'
 PROP_LIVE_UPDATEFILE = 'updatefile'
+REQUEST_TIMEOUT = (10, 120)
 
 def get_headers(require_token: bool = True) -> dict:
-  """Only use token when it's required. Abort if noken"""
+  """Only use token when it's required. Abort if noken
+
+  ESOUI wants the token on every endpoint, reads included, and answers 403 without
+  it. So require_token=False only buys a worse error message.
+  """
   token = os.getenv("ESOUI_API_TOKEN")
   if require_token and not token:
       raise RuntimeError("ESOUI_API_TOKEN not set in env")
   return {"x-api-token": token} if token else {}
 
 
-def get_addon_details(addon_id: int=ADDON_ID) -> dict[any]:
+def get_addon_details(addon_id: int=ADDON_ID) -> dict[str, typing.Any]:
   """Get details of our AddOn from ESOUI
     - PROP_LIVE_ID
     - PROP_LIVE_VERSION
     - LIVE_CHANGELOG
   """
   endpoint_details = f"{API_BASE}/details/{addon_id}.json"
-  response = requests.get(endpoint_details, headers=get_headers(require_token=False))
+  response = requests.get(endpoint_details, headers=get_headers(), timeout=REQUEST_TIMEOUT)
   response.raise_for_status()
   response_json = response.json()[0]
 
@@ -51,34 +59,38 @@ def get_addon_version(addon_id: int) -> str:
   return addon_details[PROP_LIVE_VERSION]
 
 
-def send_update_request(data: dict, archivename: str) -> dict[any]:
+def send_update_request(data: dict, archivename: str, test: bool = False) -> dict[str, typing.Any]:
   """Sends an update request with the supplied data.
   Gets required fields from the data dict, which must have the same names like in the API.
 
   Args:
       data (dict): Expects {id, version, [changelog], compatible, updatefile}
+      test (bool): Send to /updatetest, which simulates the upload and publishes nothing
 
   Raises:
       ValueError: Missing data
 
   Returns:
-      dict[any]: Response from the API like {'status': <STATUSCODE>, 'response': <DATA>}
+      dict[str, Any]: Response from the API like {'status': <STATUSCODE>, 'response': <DATA>}
   """
-  endpoint_update = f"{API_BASE}/update"
+  endpoint_update = f"{API_BASE}/updatetest" if test else f"{API_BASE}/update"
 
   if not data or not archivename: raise ValueError("got no body to send")
 
   # make sure the request is in the desired format
-  form_data = {
+  # a field is (filename, value) or (filename, value, content type), so the tuples differ in length
+  form_data: dict[str, tuple] = {
     PROP_LIVE_ID: (None, data[PROP_LIVE_ID]),
     PROP_LIVE_VERSION: (None, data[PROP_LIVE_VERSION]),
-    PROP_LIVE_CHANGELOG: (None, data[PROP_LIVE_CHANGELOG]),
-    PROP_LIVE_COMPATIBLE: (None, data[PROP_LIVE_COMPATIBLE]),
-    # application/zip fails, fallback to generic stream
-    PROP_LIVE_UPDATEFILE: (archivename, data[PROP_LIVE_UPDATEFILE], 'application/octet-stream')
   }
+  # changelog is optional for the API, so send it only when there is one
+  if data.get(PROP_LIVE_CHANGELOG) is not None:
+    form_data[PROP_LIVE_CHANGELOG] = (None, data[PROP_LIVE_CHANGELOG])
+  form_data[PROP_LIVE_COMPATIBLE] = (None, data[PROP_LIVE_COMPATIBLE])
+  # application/zip fails, fallback to generic stream
+  form_data[PROP_LIVE_UPDATEFILE] = (archivename, data[PROP_LIVE_UPDATEFILE], 'application/octet-stream')
 
-  response = requests.post(endpoint_update, headers=get_headers(), files=form_data)
+  response = requests.post(endpoint_update, headers=get_headers(), files=form_data, timeout=REQUEST_TIMEOUT)
   response.raise_for_status()
 
   # The test API returns invalid JSON like [{COMPATIBILITY LISTS}]{REAL TESTRESPONSE}
@@ -105,28 +117,26 @@ def get_compatible(apiversion: str) -> str:
 
   Returns:
       str: returns comma separated Patch versions like 8.0,8.1,8.2
+
+  Raises:
+      ValueError: No APIVersion given
+      requests.exceptions.RequestException: Request or response failed
   """
   endpoint = f"{API_BASE}/compatible.json"
   if not apiversion: raise ValueError('No APIVersion given, AddOn manifest might be broken!')
 
-  try:
-    response = requests.get(endpoint, headers=get_headers(require_token=False))
-    response.raise_for_status()
-    response_json = response.json()
+  response = requests.get(endpoint, headers=get_headers(), timeout=REQUEST_TIMEOUT)
+  response.raise_for_status()
+  response_json = response.json()
 
-    # Take largest APIVersion if multiple like '101037 101038'
-    max_compatibility = max(apiversion.split(' '))
-    compatible_with = []
+  # Take largest APIVersion if multiple like '101050 101051'
+  max_compatibility = max(int(version) for version in apiversion.split())
+  compatible_with = []
 
-    for entry in response_json:
-      if max_compatibility >= entry['interface']:
-        compatible_with.append(entry['id'])
-    return ','.join(compatible_with)
-
-  except requests.exceptions.JSONDecodeError as ex:
-    print(f"Could not process JSON response: {ex}")
-  except requests.exceptions.RequestException as ex:
-    print(f"Received error from server: {ex}")
+  for entry in response_json:
+    if max_compatibility >= int(entry['interface']):
+      compatible_with.append(entry['id'])
+  return ','.join(compatible_with)
 
 
 if __name__ == '__main__':

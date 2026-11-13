@@ -1,7 +1,7 @@
 name: FormatCode
 
 # Manual StyLua formatting. Run on any branch to reformat and commit (only if something changed)
-# PRs from INTERNAL branches are formatted automatically by pr_format.yml
+# PRs are only style checked (pr_ci.yml); run this to fix what the check flags
 
 on:
   workflow_dispatch:

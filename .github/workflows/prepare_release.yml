@@ -4,15 +4,13 @@ name: PrepareRelease
 # 1. 📍PrepareRelease    - prepare_release.yml
 # 2. FinalizeRelease     - finalize_release.yml
 # 3. PublishToESOUI      - publish_to_esoui.yml
-# Refer to CONTRIBUTING.md for more info.
+# Refer to README.md for more info.
 
 # Prepares a release:
 # - bumps version
-# - regenerates autocomplete
-# - regenerates translation files
 # - formats with StyLUA
 # - updates CHANGELOG
-# - opens `release/<version>` PR against master
+# - opens `release/<version>` PR against main
 # Merging that PR triggers FinalizeRelease, which:
 # - tags version
 # - attaches packaged addon to a GitHub release
@@ -71,11 +69,11 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-      # Master can drift from web-edits and pushes. Must get latest
-      - name: Checkout master
+      # Main can drift from web-edits and pushes. Must get latest
+      - name: Checkout main
         uses: actions/checkout@v6
         with:
-          ref: master
+          ref: main
           fetch-depth: 0
 
       - uses: ./.github/actions/configure-bot
@@ -86,10 +84,10 @@ jobs:
       #   - Manifest validate: header fields (Title / Version / APIVersion) must parse
       #   - Package dry-run: zip builds and is non-empty.
       - name: Pre-flight - Manifest validate
-        run: python .scripts/furc_utils.py validatemanifest FurnitureCatalogue.txt
+        run: python scripts/furc_utils.py validatemanifest FurnitureShoppingList/FurnitureShoppingList.txt
       - name: Pre-flight - Package dry-run
         run: |
-          python .scripts/package.py
+          python scripts/package.py
           # zip path is <Title>-<Version>.zip per package.py, check it exists + is non-empty
           ZIP="$(ls -1 *.zip | head -1)"
           test -n "$ZIP" && test -s "$ZIP" || { echo "package.py produced no zip"; exit 1; }
@@ -102,16 +100,16 @@ jobs:
         env:
           ESOUI_API_TOKEN: ${{ secrets.ESOUI_API_TOKEN }}
         run: |
-          LIVE="$(python .scripts/esoui_utils.py version)"
+          LIVE="$(python scripts/esoui_utils.py version)"
           case "${{ inputs.impact }}" in
             major) FLAG="--major" ;;
             patch) FLAG="--patch" ;;
             *)     FLAG="" ;;
           esac
           # shellcheck disable=SC2086
-          NEXT="$(python .scripts/furc_utils.py nextversion --current "$LIVE" $FLAG)"
+          NEXT="$(python scripts/furc_utils.py nextversion --current "$LIVE" $FLAG)"
           # Refuse to skip more than 1 step over live ESOUI version
-          python .scripts/furc_utils.py checkincrement --current "$LIVE" --next "$NEXT"
+          python scripts/furc_utils.py checkincrement --current "$LIVE" --next "$NEXT"
           echo "LIVE=$LIVE" >> "$GITHUB_OUTPUT"
           echo "NEXT=$NEXT" >> "$GITHUB_OUTPUT"
           echo "Live on ESOUI: $LIVE -> Next: $NEXT"
@@ -146,12 +144,12 @@ jobs:
       # Everything below writes files in working tree
       # ------------------------------
 
-      - name: Bump version (FurnitureCatalogue.txt + Startup.lua)
+      - name: Bump version (FurnitureShoppingList.txt)
         id: bump
         run: |
           VERSION="${{ steps.version.outputs.NEXT }}"
           CHANGED="changed_${VERSION}.tmp"
-          python .scripts/furc_utils.py changeversion --new-version "$VERSION" --output-file "$CHANGED"
+          python scripts/furc_utils.py changeversion --new-version "$VERSION" --output-file "$CHANGED"
           echo "CHANGED_FILES=$CHANGED" >> "$GITHUB_OUTPUT"
 
       - name: Assemble release notes
@@ -187,25 +185,10 @@ jobs:
 
       - name: Update CHANGELOG (does nothing, if empty)
         run: |
-          python .scripts/furc_utils.py update_changelog \
+          python scripts/furc_utils.py update_changelog \
             --notes-file "notes_${{ steps.version.outputs.NEXT }}.tmp" \
             --changelog-file CHANGELOG \
             --header "${{ steps.version.outputs.NEXT }} ($(date --iso-8601))"
-
-      - name: Regenerate autocomplete defs (XML + strings)
-        run: |
-          LUADOC_DEFINITIONS="docs/autocomplete_definitions.lua"
-          python .scripts/luaDoc_generateStr.py locale/en.lua
-          python .scripts/luaDoc_generateGui.py xml/FurnitureCatalogue.xml "$LUADOC_DEFINITIONS"
-          python .scripts/luaDoc_generateGui.py FurnitureCatalogue_DevUtility/xml.xml "$LUADOC_DEFINITIONS"
-
-      - name: Regenerate translation files
-        run: |
-          for langfile in locale/*.lua; do
-            if [[ "$langfile" != "locale/en.lua" ]]; then
-              python .scripts/luaDoc_generateStr.py locale/en.lua "$langfile" --generate-translation
-            fi
-          done
 
       - name: Format with StyLUA
         run: ~/.cache/bins/stylua --config-path=stylua.toml .
@@ -224,7 +207,7 @@ jobs:
           rm -rf release-preview && mkdir release-preview
           git diff --cached --stat > release-preview/release_diff.stat
           git diff --cached > release-preview/release_diff.patch
-          cp FurnitureCatalogue.txt CHANGELOG release-preview/
+          cp FurnitureShoppingList/FurnitureShoppingList.txt CHANGELOG release-preview/
           {
             echo "## Release preview: ${{ steps.version.outputs.NEXT }}"
             echo ""
@@ -255,7 +238,7 @@ jobs:
             echo ""
             echo "Nothing pushed."
             echo ""
-            echo "The full diff + bumped \`FurnitureCatalogue.txt\` + new top of"
+            echo "The full diff + bumped \`FurnitureShoppingList.txt\` + new top of"
             echo "\`CHANGELOG\` are attached to this run as the **\`$ARTIFACT_NAME\`**"
             echo "artifact: see the **Artifacts** section at bottom of this run page"
             echo "(right under this summary)"
@@ -263,7 +246,7 @@ jobs:
             echo "#### Apply patch locally (preview in your editor, or test in-game)"
             echo ""
             echo "1. Download \`$ARTIFACT_NAME.zip\` from Artifacts section above and unzip (the artifact). Contains \`release_diff.patch\`."
-            echo "2. In your local repo (checked out on \`master\`):"
+            echo "2. In your local repo (checked out on \`main\`):"
             echo ""
             echo '   ```bash'
             echo "   git checkout -b release/${{ steps.version.outputs.NEXT }}-preview"
@@ -275,7 +258,7 @@ jobs:
             echo "live AddOns dir and \`/reloadui\` to test in-game."
             echo ""
             echo "To roll back: \`git restore .\` (drops the unstaged patch), then"
-            echo "\`git checkout master && git branch -D release/${{ steps.version.outputs.NEXT }}-preview\`."
+            echo "\`git checkout main && git branch -D release/${{ steps.version.outputs.NEXT }}-preview\`."
             echo ""
             echo "Re-run with **dry_run=false** to commit + open the release PR."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -295,7 +278,7 @@ jobs:
           # Reset the all-in-one staging done for diff capture; redo in stages.
           git reset
 
-          # 1. Version bumps (manifest + Startup.lua)
+          # 1. Version bump (manifest)
           while read -r LINE; do
             [[ -n "$LINE" ]] && git add "$LINE"
           done < "$CHANGED_FILES"
@@ -305,15 +288,7 @@ jobs:
           git add CHANGELOG 2>/dev/null || true
           git commit -m "CHANGELOG for $VERSION" 2>/dev/null || true
 
-          # 3. Translations
-          git add 'locale/*.lua' 2>/dev/null || true
-          git commit -m "Update translations for $VERSION" 2>/dev/null || true
-
-          # 4. luaDoc autocomplete.
-          git add 'docs/*.lua' 2>/dev/null || true
-          git commit -m "Update luaDoc for $VERSION" 2>/dev/null || true
-
-          # 5. stylua reformatting (can result in 0 changes)
+          # 3. stylua reformatting (can result in 0 changes)
           git add '*.lua' '**/*.lua' 2>/dev/null || true
           git commit -m "Format LUA files with StyLUA" 2>/dev/null || true
 
@@ -352,6 +327,6 @@ jobs:
           gh pr create \
             --title "Release $VERSION" \
             --head "${{ steps.branch.outputs.BRANCH }}" \
-            --base master \
+            --base main \
             --body-file "$BODY_FILE" \
             --no-maintainer-edit

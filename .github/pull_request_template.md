@@ -8,8 +8,7 @@
 
 ## Checklist for Contributors
 
-- [ ] I'm sending this PR to the `dev` branch
-- [ ] My code is up to date with the `dev` branch
+- [ ] My branch is up to date with `main`
 - [ ] I tried my changes ingame and so far nothing exploded
 
 <!-- Maintainers: Use actions -->
