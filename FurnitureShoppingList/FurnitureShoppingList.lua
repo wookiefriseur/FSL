@@ -1,7 +1,6 @@
 ﻿-- Code derived from GodSendPlus, originally by Focus (MIT License).
 
 local ADDON_NAME = "FurnitureShoppingList"
-local ADDON_VERSION = "1.2.1" --TODO: auto-generate from pipeline
 
 local SL_WINDOW = nil
 SL_RECIPIENTS = nil
@@ -74,7 +73,7 @@ function FurnitureShoppingListRecipients:New(control)
 
     control.container = manager
 	manager.masterList = {}
-	manager.sortHeaderGroup:SelectHeaderByKey("id")
+	manager.sortHeaderGroup:SelectHeaderByKey("name")
 
 	return manager
 end
@@ -114,14 +113,13 @@ function FurnitureShoppingListRecipients:FilterScrollList()
     ZO_ClearNumericallyIndexedTable(scrollData)
 
     for i = 1, #self.masterList do
-		local data = self.masterList[i]
-		if data.mail ~= false then
-		table.insert(scrollData, ZO_ScrollList_CreateDataEntry(1, data))
-		else end
+		table.insert(scrollData, ZO_ScrollList_CreateDataEntry(1, self.masterList[i]))
     end
 end
 
 function FurnitureShoppingListRecipients:SortScrollList()
+	local scrollData = ZO_ScrollList_GetDataList(self.list)
+	table.sort(scrollData, function(a, b) return ZO_TableOrderingFunction(a.data, b.data, self.currentSortKey, RECIPIENTS_SORT_KEYS, self.currentSortOrder) end)
 end
 
 function FurnitureShoppingListRecipients:ColorRow(control, data, mouseIsOver)
@@ -233,7 +231,7 @@ function FurnitureShoppingListDel(itemLink)
     if not ingredients then return end
 
     for mat, cost in pairs(ingredients) do
-        local n = GetItemLinkName(mat)
+        local n = zo_strformat("<<t:1>>", GetItemLinkName(mat))
 
         FurnitureShoppingListDataLookup[n] = mat
 
@@ -302,7 +300,7 @@ function FurnitureShoppingListWindow:InventorySlot_ShowContextMenu (rowControl)
         zo_callLater(function ()
             AddCustomMenuItem(GetString(FSL_ADD_1_TO_LIST), function() FurnitureShoppingListAdd(link) end)
             AddCustomMenuItem(GetString(FSL_DEL_1_TO_LIST), function () FurnitureShoppingListDel(link) end)
-            ShowMenu(self)
+            ShowMenu(rowControl)
         end, 50)
     end
 end
