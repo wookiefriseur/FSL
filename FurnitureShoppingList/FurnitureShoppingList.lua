@@ -4,7 +4,7 @@ local ADDON_NAME = "FurnitureShoppingList"
 local QUANTITY_DIALOG = "FURNITURE_SHOPPING_LIST_QUANTITY"
 
 -- Public API (for FurnitureCatalogue etc): version, Add, PromptAdd
--- Legacy: FurnitureShoppingListAdd/Del stay for now
+-- TODO: Legacy FurnitureShoppingListAdd/Del stay for now, check who's using it
 FurnitureShoppingList = {}
 do
 	local addOnManager = GetAddOnManager()
@@ -63,9 +63,16 @@ local function craftableItemId(LFC, itemOrLink)
 	if entry and next(LFC.GetIngredients(entry.id, entry)) then return entry.id end
 end
 
--- needs no catalogue, so stored items keep their names while it is missing
+-- for the context menus: only a ready catalogue is queried
+local function canShopFor(link)
+	if not (IsItemLinkPlaceableFurniture(link) or IsItemLinkFurnitureRecipe(link)) then return false end
+	local LFC = getLibrary()
+	return LFC ~= nil and LFC.IsReady() and craftableItemId(LFC, link) ~= nil
+end
+
+-- needs no catalogue, so stored items keep their names while it is missing; plain style like the material links
 local function itemLinkFromId(itemId)
-	return string.format("|H1:item:%d:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h", itemId)
+	return string.format("|H0:item:%d:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h", itemId)
 end
 
 -- materials for { [itemId] = quantity }, keyed by material item id: { link = , need = }
@@ -83,21 +90,30 @@ local function materialTotals(LFC, items)
 	return totals
 end
 
--- furnishing ids in "FURC LIST: <name>: <id>,<id>,..." text, in order, repeats kept. The name runs to the last
--- colon. A line of only ids continues the list line before it, because the game breaks a long pasted line in two.
--- Other lines, including other format versions ("FURC LIST 2: ..."), are skipped.
+-- furnishing ids in pasted text, in order, repeats kept. The ids of a line are what follows its last colon, so
+-- "FURC LIST: <name>: ...", "FURC FAVES: ..." and a bare "123,456" all count; a line whose rest is not ids is skipped.
+-- A colon-less line of ids right after a line with a colon is glued onto it, as FurnitureCatalogue does: the edit box
+-- breaks a long pasted line, possibly inside an id.
 local function parseListText(text)
-	local ids, continuing = {}, false
-	for line in tostring(text or ""):gmatch("[^\r\n]+") do
-		local idText = line:match("^%s*FURC LIST%s*:.*:%s*([%d,%s]*)$")
-		if idText then
-			continuing = true
-		elseif continuing and line:match("^[%d,%s]+$") then
-			idText = line
+	local lines, last = {}, nil
+	for rawLine in tostring(text or ""):gmatch("[^\r\n]+") do
+		local line = rawLine:match("^%s*(.-)%s*$")
+		local tail = line:match(".*:(.*)$")
+		local idText = (tail or line):match("^[%d,%s]*$")
+		if line == "" then
+			-- an empty line neither ends nor continues anything
+		elseif not idText then
+			last = nil
+		elseif last and not tail then
+			lines[last] = lines[last] .. idText
 		else
-			continuing = false
+			lines[#lines + 1] = idText
+			last = tail and #lines or nil
 		end
-		for id in (idText or ""):gmatch("%d+") do
+	end
+	local ids = {}
+	for _, idText in ipairs(lines) do
+		for id in idText:gmatch("%d+") do
 			ids[#ids + 1] = tonumber(id)
 		end
 	end
@@ -244,7 +260,7 @@ end
 function FurnitureShoppingListItems:SetupRow(control, data)
 	ZO_SortFilterList.SetupRow(self, control, data)
 
-	-- left click edits the quantity, right click offers edit and remove
+	-- left click: qty; right click: edit+rm
 	control:SetHandler("OnMouseUp", function(_, button, upInside)
 		if not upInside then return end
 		if button == MOUSE_BUTTON_INDEX_LEFT then
@@ -257,7 +273,7 @@ function FurnitureShoppingListItems:SetupRow(control, data)
 		end
 	end)
 
-	GetControl(control, "Name"):SetText(data.name)
+	GetControl(control, "Name"):SetText(data.link)
 	GetControl(control, "Quantity"):SetText(data.quantity)
 end
 
@@ -271,6 +287,7 @@ function FurnitureShoppingListItems:BuildMasterList()
 end
 
 FurnitureShoppingListItems.FilterScrollList = FurnitureShoppingListRecipients.FilterScrollList
+FurnitureShoppingListItems.ColorRow = FurnitureShoppingListRecipients.ColorRow -- keeps the links' quality colour
 
 function FurnitureShoppingListItems:SortScrollList()
 	local scrollData = ZO_ScrollList_GetDataList(self.list)
@@ -279,9 +296,15 @@ end
 
 function FurnitureShoppingListItemsRow_OnMouseEnter(control)
 	SL_ITEMS:EnterRow(control)
+	local data = ZO_ScrollList_GetData(control)
+	if data then
+		InitializeTooltip(ItemTooltip, control, RIGHT, -5, 0, LEFT)
+		ItemTooltip:SetLink(data.link)
+	end
 end
 
 function FurnitureShoppingListItemsRow_OnMouseExit(control)
+	ClearTooltip(ItemTooltip)
 	SL_ITEMS:ExitRow(control)
 end
 
@@ -358,8 +381,8 @@ function FurnitureShoppingListAdd(itemLink, recipeArray, quantity)
 	FurnitureShoppingList.Add(itemLink, quantity)
 end
 
--- quantity defaults to 1; anything below 1 is ignored
-function FurnitureShoppingList.Add(itemLink, quantity)
+--- Adds item to the list, quantity defaults to 1; anything below 1 is ignored. showWindow opens the window once the item is added
+local function addItem(itemLink, quantity, showWindow)
 	quantity = zo_floor(tonumber(quantity) or 1)
 	if quantity < 1 then return end
 	withLibrary(function(LFC)
@@ -369,7 +392,13 @@ function FurnitureShoppingList.Add(itemLink, quantity)
 			return
 		end
 		setQuantity(itemId, (SAVED.items[itemId] or 0) + quantity)
+		if showWindow then SL_WINDOW.control:SetHidden(false) end -- setQuantity has refreshed both panes
 	end)
+end
+
+-- no window: callers of the API may add in bulk
+function FurnitureShoppingList.Add(itemLink, quantity)
+	addItem(itemLink, quantity, false)
 end
 
 -- asks for a quantity (prefilled with 1, Enter confirms), then Add
@@ -449,12 +478,14 @@ function FurnitureShoppingList_Import_OnClicked(control)
 	end)
 end
 
+---@deprecated Please use FurnitureShoppingList.Add instead
 function FurnitureShoppingListAdd_Crafting ()
     local li, ri = PROVISIONER:GetSelectedRecipeListIndex(), PROVISIONER:GetSelectedRecipeIndex()
     local nk = ZO_LinkHandler_CreateChatLink(GetRecipeResultItemLink, li, ri)
     FurnitureShoppingListAdd(nk)
 end
 
+---@deprecated Or maybe not??? TODO
 function FurnitureShoppingListDel_Crafting ()
     local li, ri = PROVISIONER:GetSelectedRecipeListIndex(), PROVISIONER:GetSelectedRecipeIndex()
     local nk = ZO_LinkHandler_CreateChatLink(GetRecipeResultItemLink, li, ri)
@@ -467,7 +498,7 @@ function FurnitureShoppingListWindow:InventorySlot_ShowContextMenu (rowControl)
 
     local link = GetItemLink(bag, slot)
 
-    if link and IsItemLinkPlaceableFurniture(link) then
+    if link and canShopFor(link) then
         zo_callLater(function ()
             AddCustomMenuItem(GetString(FSL_ADD_TO_LIST), function() FurnitureShoppingList.PromptAdd(link) end)
             ShowMenu(rowControl)
@@ -479,6 +510,7 @@ local function OnAddonLoaded(eventCode, addonName)
 	if addonName ~= (ADDON_NAME) then return end
 
 	SLASH_COMMANDS["/sl"] = FurnitureShoppingListWindow_Toggle
+	SLASH_COMMANDS["/fsl"] = FurnitureShoppingListWindow_Toggle
 
 	SAVED = ZO_SavedVars:NewAccountWide("FurnitureShoppingListSV", 1, nil, { items = {} })
 	SL_ITEMS:RefreshData()
@@ -489,14 +521,13 @@ local function OnAddonLoaded(eventCode, addonName)
 		if dialog.data.itemId then
 			if quantity then setQuantity(dialog.data.itemId, quantity) end
 		else
-			FurnitureShoppingList.Add(dialog.data.itemLink, quantity)
+			addItem(dialog.data.itemLink, quantity, true) -- an interactive add, so show the result
 		end
 	end
 	ZO_Dialogs_RegisterCustomDialog(QUANTITY_DIALOG, {
 		title = { text = SI_FSL_QUANTITY_TITLE },
 		mainText = { text = SI_FSL_QUANTITY_TEXT },
 		editBox = { textType = TEXT_TYPE_NUMERIC_UNSIGNED_INT, maxInputCharacters = 4, selectAll = true },
-		-- the dialog's edit box only drops focus on Enter; a named handler makes one Enter confirm
 		setup = function(dialog)
 			dialog:GetNamedChild("EditBox"):SetHandler("OnEnter", function() ZO_Dialogs_ButtonKeybindPressed("DIALOG_PRIMARY") end, ADDON_NAME)
 		end,
@@ -519,7 +550,7 @@ local function OnAddonLoaded(eventCode, addonName)
 			if (not handled) then
 				original_OnLinkMouseUp(itemLink, button, control)
 				if (button == 2 and itemLink ~= '') then
-                    if IsItemLinkPlaceableFurniture(itemLink) then
+                    if canShopFor(itemLink) then
 						AddCustomMenuItem(GetString(FSL_ADD_TO_LIST), function() FurnitureShoppingList.PromptAdd(itemLink) end)
 						ShowMenu(control)
 					end

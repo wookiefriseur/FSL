@@ -4,7 +4,7 @@ ZO_CreateStringId("SI_SHOPPINGLIST_PRINT", "Print")
 ZO_CreateStringId("SI_SHOPPINGLIST_FULL", "Show Full Need")
 ZO_CreateStringId("SI_SHOPPINGLIST_IMPORT", "Import List")
 ZO_CreateStringId("SI_FSL_IMPORT_TITLE", "Import a furnishing list")
-ZO_CreateStringId("SI_FSL_IMPORT_HINT", "Paste FURC LIST lines from FurnitureCatalogue. Each new craftable item is added once.")
+ZO_CreateStringId("SI_FSL_IMPORT_HINT", "Paste FURC LIST or FURC FAVES lines from FurnitureCatalogue, or item ids. Each new craftable item is added once.")
 ZO_CreateStringId("SI_FSL_IMPORT_DO", "Import")
 
 ZO_CreateStringId("SI_BINDING_NAME_SL_ADD", "Add 1 to Shopping List")
