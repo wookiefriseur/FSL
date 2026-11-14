@@ -41,11 +41,32 @@
 
 			</Controls>
 		</Control>
+
+		<Control name="FurnitureShoppingListItemRow" mouseEnabled="true" virtual="true">
+			<Dimensions y="29"/>
+			<OnMouseEnter>
+				FurnitureShoppingListItemsRow_OnMouseEnter(self)
+			</OnMouseEnter>
+			<OnMouseExit>
+				FurnitureShoppingListItemsRow_OnMouseExit(self)
+			</OnMouseExit>
+			<Controls>
+				<Texture name="$(parent)BG" inherits="ZO_ThinListBgStrip"/>
+				<Label name="$(parent)Name" font="ZoFontGame" wrapMode="ELLIPSIS">
+					<Anchor point="LEFT"/>
+					<Dimensions x="290" y="21"/>
+				</Label>
+				<Label name="$(parent)Quantity" font="ZoFontGame">
+					<Anchor point="LEFT" relativeTo="$(parent)Name" relativePoint="RIGHT"/>
+					<Dimensions x="60" y="21"/>
+				</Label>
+			</Controls>
+		</Control>
 		
 	
 		<TopLevelControl name="FurnitureShoppingListWindow" movable="true" mouseEnabled="true" hidden="true">
 			<Anchor point="CENTER" relativeTo="GuiRoot" offsetX="0" offsetY="0"/>
-			<Dimensions x="522" y="475"/>
+			<Dimensions x="922" y="475"/>
 			
 			<OnInitialized>
 				FurnitureShoppingListWindow_OnInitialized(self)
@@ -80,8 +101,53 @@
 						<Anchor point="BOTTOMRIGHT"/>
 					</Control>
 
+                    <Control name="FurnitureShoppingListItems">
+                        <Anchor point="TOPLEFT"/>
+                        <Dimensions x="400" y="475"/>
+                        <OnInitialized>
+                            FurnitureShoppingListItems_OnInitialized(self)
+                        </OnInitialized>
+                        <Controls>
+                            <Control name="$(parent)Headers">
+                                <Anchor point="TOPLEFT" offsetX="-2" offsetY="51"/>
+                                <Dimensions x="390" y="28"/>
+                                <Controls>
+                                    <Control name="$(parent)Name" inherits="ZO_SortHeader">
+                                        <OnInitialized>
+                                            ZO_SortHeader_Initialize(self, "ITEM", "name", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
+                                        </OnInitialized>
+                                        <Anchor point="TOPLEFT" offsetX="15"/>
+                                        <Dimensions x="290" y="28"/>
+                                    </Control>
+                                    <Control name="$(parent)Quantity" inherits="ZO_SortHeader">
+                                        <OnInitialized>
+                                            ZO_SortHeader_Initialize(self, "QTY", "quantity", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
+                                        </OnInitialized>
+                                        <Anchor point="TOPLEFT" relativeTo="$(parent)Name" relativePoint="TOPRIGHT"/>
+                                        <Dimensions x="60" y="28"/>
+                                    </Control>
+                                </Controls>
+                            </Control>
+
+                            <Control name="$(parent)List" inherits="ZO_ScrollList">
+                                <Anchor point="TOPLEFT" relativeTo="$(parent)Headers" relativePoint="BOTTOMLEFT" offsetX="8"/>
+                                <Anchor point="TOPRIGHT" relativeTo="$(parent)Headers" relativePoint="BOTTOMRIGHT"/>
+                                <Dimensions y="331"/>
+                            </Control>
+
+                            <Button name="$(parent)ImportButton" inherits="ZO_DefaultButton" text="SI_SHOPPINGLIST_IMPORT">
+                                <Anchor point="BOTTOM" relativePoint="BOTTOM" offsetY="-12"/>
+                                <Dimensions x="150" y="27"/>
+                                <OnClicked>
+                                    FurnitureShoppingList_OpenImport_OnClicked(self)
+                                </OnClicked>
+                            </Button>
+                        </Controls>
+                    </Control>
+
                     <Control name="FurnitureShoppingListRecipients">
-                        <AnchorFill/>
+                        <Anchor point="TOPRIGHT"/>
+                        <Dimensions x="522" y="475"/>
                         <OnInitialized>
                             FurnitureShoppingListRecipients_OnInitialized(self)
                         </OnInitialized>
@@ -124,6 +190,11 @@
                                 <Dimensions y="331"/>
                             </Control>	
 
+                            <Label name="$(parent)Status" font="ZoFontGame" horizontalAlignment="CENTER" hidden="true">
+                                <Anchor point="TOP" relativeTo="$(parent)List" offsetY="40"/>
+                                <Dimensions x="460"/>
+                            </Label>
+
                             <Button name="$(parent)ClearButton" inherits="ZO_DefaultButton" color="INTERFACE_COLOR_TYPE_TEXT_COLORS:INTERFACE_TEXT_COLOR_NORMAL" text="SI_SHOPPINGLIST_CLEAR">
                                 <Anchor point="BOTTOM" relativePoint="BOTTOM" offsetX="-90" offsetY="-12"/>
                                 <Dimensions x="100" y="27"/>
@@ -156,6 +227,53 @@
                         </Controls>
                     </Control>
 				</Controls>
+		</TopLevelControl>
+
+		<TopLevelControl name="FurnitureShoppingListImport" movable="true" mouseEnabled="true" hidden="true" tier="MEDIUM">
+			<Anchor point="CENTER" relativeTo="GuiRoot"/>
+			<Dimensions x="600" y="400"/>
+			<Controls>
+				<Backdrop name="$(parent)BG" inherits="ZO_DefaultBackdrop">
+					<AnchorFill/>
+				</Backdrop>
+				<Label name="$(parent)Title" font="ZoFontWindowTitle" text="SI_FSL_IMPORT_TITLE">
+					<Anchor point="TOPLEFT" offsetX="9" offsetY="7"/>
+				</Label>
+				<Button name="$(parent)CloseButton" inherits="ZO_CloseButton">
+					<Anchor point="TOPRIGHT" offsetX="-7" offsetY="5"/>
+					<Dimensions x="18" y="20"/>
+					<OnClicked>
+						FurnitureShoppingList_CloseImport_OnClicked(self)
+					</OnClicked>
+				</Button>
+				<Label name="$(parent)Hint" font="ZoFontGame" text="SI_FSL_IMPORT_HINT">
+					<Anchor point="TOPLEFT" offsetX="12" offsetY="50"/>
+					<Anchor point="TOPRIGHT" offsetX="-12" offsetY="50"/>
+				</Label>
+				<Backdrop name="$(parent)EditBg" inherits="ZO_MultiLineEditBackdrop_Keyboard">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)Hint" relativePoint="BOTTOMLEFT" offsetY="10"/>
+					<Anchor point="BOTTOMRIGHT" offsetX="-12" offsetY="-80"/>
+					<Controls>
+						<EditBox name="FurnitureShoppingListImportEdit" inherits="ZO_DefaultEditMultiLineForBackdrop">
+							<OnInitialized>
+								-- FurnitureCatalogue writes up to 1000 ids (about 8000 characters) per line
+								self:SetMaxInputChars(20000)
+							</OnInitialized>
+						</EditBox>
+					</Controls>
+				</Backdrop>
+				<Label name="$(parent)Status" font="ZoFontGame">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)EditBg" relativePoint="BOTTOMLEFT" offsetY="8"/>
+					<Anchor point="TOPRIGHT" relativeTo="$(parent)EditBg" relativePoint="BOTTOMRIGHT" offsetY="8"/>
+				</Label>
+				<Button name="$(parent)ImportButton" inherits="ZO_DefaultButton" text="SI_FSL_IMPORT_DO">
+					<Anchor point="BOTTOM" offsetY="-12"/>
+					<Dimensions x="150" y="27"/>
+					<OnClicked>
+						FurnitureShoppingList_Import_OnClicked(self)
+					</OnClicked>
+				</Button>
+			</Controls>
 		</TopLevelControl>
 
     </Controls>

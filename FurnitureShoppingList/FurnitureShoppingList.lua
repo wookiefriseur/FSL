@@ -1,9 +1,26 @@
 ﻿-- Code derived from GodSendPlus, originally by Focus (MIT License).
 
 local ADDON_NAME = "FurnitureShoppingList"
+local QUANTITY_DIALOG = "FURNITURE_SHOPPING_LIST_QUANTITY"
+
+-- Public API (for FurnitureCatalogue etc): version, Add, PromptAdd
+-- Legacy: FurnitureShoppingListAdd/Del stay for now
+FurnitureShoppingList = {}
+do
+	local addOnManager = GetAddOnManager()
+	for i = 1, addOnManager:GetNumAddOns() do
+		if addOnManager:GetAddOnInfo(i) == ADDON_NAME then
+			FurnitureShoppingList.version = addOnManager:GetAddOnVersion(i)
+			break
+		end
+	end
+end
 
 local SL_WINDOW = nil
 SL_RECIPIENTS = nil
+local SL_ITEMS = nil
+local SAVED = nil -- saved vars: SAVED.items[itemId] = quantity
+local subtractOwned = false
 
 local RECIPIENTS_SORT_KEYS =
 {
@@ -12,33 +29,94 @@ local RECIPIENTS_SORT_KEYS =
     ["price"] = { tiebreaker = "name", isNumeric = true },
 }
 
+local ITEMS_SORT_KEYS =
+{
+	["name"] = { },
+	["quantity"] = { tiebreaker = "name", isNumeric = true },
+}
+
 local FurnitureShoppingListWindow = ZO_Object:Subclass()
 local FurnitureShoppingListRecipients = ZO_SortFilterList:Subclass()
-FurnitureShoppingListData = {}
-FurnitureShoppingListDataLookup = {}
+local FurnitureShoppingListItems = ZO_SortFilterList:Subclass()
 
-local function getIngredients (itemLink, recipeArray)
-    if not (LibFurnitureCatalogue and LibFurnitureCatalogue.API) then
-        CHAT_SYSTEM:AddMessage(GetString(FSL_REQUIRES_FC))
-        return nil
-    end
+local function getLibrary()
+	return LibFurnitureCatalogue and LibFurnitureCatalogue.API
+end
 
-    local LFC = LibFurnitureCatalogue.API
+-- runs fn(LFC) if the catalogue is ready, else once it is
+local function withLibrary(fn)
+	local LFC = getLibrary()
+	if not SAVED then
+		return
+	elseif not LFC then
+		CHAT_SYSTEM:AddMessage(GetString(FSL_REQUIRES_FC))
+	elseif LFC.IsReady() then
+		fn(LFC)
+	elseif not LFC.OnReady(function() fn(LFC) end) then
+		CHAT_SYSTEM:AddMessage(GetString(FSL_DB_NOT_READY))
+	end
+end
 
-    recipeArray = recipeArray or LFC.GetEntry(itemLink)
-    local ingredients = recipeArray and LFC.GetIngredients(itemLink, recipeArray)
+-- furnishing id of an item or its blueprint (link or id), nil unless the catalogue says it's craftable
+local function craftableItemId(LFC, itemOrLink)
+	local entry = LFC.GetEntry(itemOrLink)
+	if entry and next(LFC.GetIngredients(entry.id, entry)) then return entry.id end
+end
 
-    if not LFC.IsReady() then
-        CHAT_SYSTEM:AddMessage(GetString(FSL_DB_NOT_READY))
-        return nil
-    end
+-- needs no catalogue, so stored items keep their names while it is missing
+local function itemLinkFromId(itemId)
+	return string.format("|H1:item:%d:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h", itemId)
+end
 
-    if not ingredients or nil == next(ingredients) then
-        CHAT_SYSTEM:AddMessage(GetString(FSL_NOT_VALID_ITEM))
-        return nil
-    end
+-- materials for { [itemId] = quantity }, keyed by material item id: { link = , need = }
+local function materialTotals(LFC, items)
+	local totals = {}
+	for itemId, quantity in pairs(items) do
+		local entry = LFC.GetEntry(itemId)
+		for link, perItem in pairs(entry and LFC.GetIngredients(itemId, entry) or {}) do
+			local materialId = GetItemLinkItemId(link)
+			local total = totals[materialId] or { link = link, need = 0 }
+			total.need = total.need + perItem * quantity
+			totals[materialId] = total
+		end
+	end
+	return totals
+end
 
-    return ingredients
+-- furnishing ids in "FURC LIST: <name>: <id>,<id>,..." text, in order, repeats kept. The name runs to the last
+-- colon. A line of only ids continues the list line before it, because the game breaks a long pasted line in two.
+-- Other lines, including other format versions ("FURC LIST 2: ..."), are skipped.
+local function parseListText(text)
+	local ids, continuing = {}, false
+	for line in tostring(text or ""):gmatch("[^\r\n]+") do
+		local idText = line:match("^%s*FURC LIST%s*:.*:%s*([%d,%s]*)$")
+		if idText then
+			continuing = true
+		elseif continuing and line:match("^[%d,%s]+$") then
+			idText = line
+		else
+			continuing = false
+		end
+		for id in (idText or ""):gmatch("%d+") do
+			ids[#ids + 1] = tonumber(id)
+		end
+	end
+	return ids
+end
+
+local function refresh()
+	if SL_ITEMS then SL_ITEMS:RefreshData() end
+	if SL_RECIPIENTS then SL_RECIPIENTS:RefreshData() end
+end
+
+-- below 1 removes the item
+local function setQuantity(itemId, quantity)
+	SAVED.items[itemId] = quantity >= 1 and zo_floor(quantity) or nil
+	refresh()
+end
+
+local function promptQuantity(data)
+	ZO_Dialogs_ShowDialog(QUANTITY_DIALOG, { itemId = data.itemId }, { mainTextParams = { data.link }, initialEditText = tostring(data.quantity) })
 end
 
 --TODO: use LibPrice?
@@ -70,6 +148,7 @@ function FurnitureShoppingListRecipients:New(control)
 	manager.control = control
 
     manager.mm = GetControl(control, "MM")
+	manager.status = GetControl(control, "Status")
 
     control.container = manager
 	manager.masterList = {}
@@ -83,7 +162,7 @@ function FurnitureShoppingListRecipients:SetupRow(control, data)
 
 	control:SetHandler("OnMouseUp", function(control, button, upInside, linkText) self:OnRowMouseUp(control, button, upInside, linkText) end)
 
-	GetControl(control, "Name"):SetText(data.name)
+	GetControl(control, "Name"):SetText(data.link)
 	GetControl(control, "Need"):SetText(data.need)
     GetControl(control, "Price"):SetText(data.price)
 
@@ -94,16 +173,31 @@ function FurnitureShoppingListRecipients:BuildMasterList()
 
     local mm_total = 0
 
-    for mat, need in pairs(FurnitureShoppingListData) do
-        local name = FurnitureShoppingListDataLookup[mat]
+	local LFC = getLibrary()
+	local status = nil
+	if not LFC then
+		status = GetString(FSL_REQUIRES_FC)
+	elseif not LFC.IsReady() then
+		status = GetString(FSL_DB_NOT_READY)
+		LFC.OnReady(refresh)
+	elseif SAVED then
+		for _, total in pairs(materialTotals(LFC, SAVED.items)) do
+			local need = total.need
+			if subtractOwned then
+				local a, b, c = GetItemLinkStacks(total.link)
+				need = zo_max(need - (a + b + c), 0)
+			end
 
-        if need > 0 then
-            local cost = getMM(name) or 0
-            local this_row = zo_floor(cost*need)
-            mm_total = mm_total + this_row
-            table.insert(self.masterList, {name=name, need=need, price=this_row})
-        end
+			if need > 0 then
+				local cost = getMM(total.link) or 0
+				local this_row = zo_floor(cost*need)
+				mm_total = mm_total + this_row
+				table.insert(self.masterList, {name=zo_strformat("<<t:1>>", GetItemLinkName(total.link)), link=total.link, need=need, price=this_row})
+			end
+		end
 	end
+	self.status:SetText(status or "")
+	self.status:SetHidden(status == nil)
 
 		self.mm:SetText((nil ~= MasterMerchant and "MM: " .. mm_total .. "g") or "")
 end
@@ -134,8 +228,71 @@ function FurnitureShoppingListRecipients:OnRowMouseUp(control, button, upInside,
 	end
 end
 
+function FurnitureShoppingListItems:New(control)
+	local manager = ZO_SortFilterList.New(self, control)
+
+	ZO_ScrollList_AddDataType(manager.list, 1, "FurnitureShoppingListItemRow", 30, function(rowControl, data) manager:SetupRow(rowControl, data) end)
+	ZO_ScrollList_EnableHighlight(manager.list, "ZO_ThinListHighlight")
+	manager:SetAlternateRowBackgrounds(true)
+
+	manager.masterList = {}
+	manager.sortHeaderGroup:SelectHeaderByKey("name")
+
+	return manager
+end
+
+function FurnitureShoppingListItems:SetupRow(control, data)
+	ZO_SortFilterList.SetupRow(self, control, data)
+
+	-- left click edits the quantity, right click offers edit and remove
+	control:SetHandler("OnMouseUp", function(_, button, upInside)
+		if not upInside then return end
+		if button == MOUSE_BUTTON_INDEX_LEFT then
+			promptQuantity(data)
+		elseif button == MOUSE_BUTTON_INDEX_RIGHT then
+			ClearMenu()
+			AddCustomMenuItem(GetString(FSL_CHANGE_QUANTITY), function() promptQuantity(data) end)
+			AddCustomMenuItem(GetString(FSL_REMOVE_ITEM), function() setQuantity(data.itemId, 0) end)
+			ShowMenu(control)
+		end
+	end)
+
+	GetControl(control, "Name"):SetText(data.name)
+	GetControl(control, "Quantity"):SetText(data.quantity)
+end
+
+function FurnitureShoppingListItems:BuildMasterList()
+	ZO_ClearNumericallyIndexedTable(self.masterList)
+
+	for itemId, quantity in pairs(SAVED and SAVED.items or {}) do
+		local link = itemLinkFromId(itemId)
+		table.insert(self.masterList, { itemId = itemId, link = link, name = zo_strformat("<<t:1>>", GetItemLinkName(link)), quantity = quantity })
+	end
+end
+
+FurnitureShoppingListItems.FilterScrollList = FurnitureShoppingListRecipients.FilterScrollList
+
+function FurnitureShoppingListItems:SortScrollList()
+	local scrollData = ZO_ScrollList_GetDataList(self.list)
+	table.sort(scrollData, function(a, b) return ZO_TableOrderingFunction(a.data, b.data, self.currentSortKey, ITEMS_SORT_KEYS, self.currentSortOrder) end)
+end
+
+function FurnitureShoppingListItemsRow_OnMouseEnter(control)
+	SL_ITEMS:EnterRow(control)
+end
+
+function FurnitureShoppingListItemsRow_OnMouseExit(control)
+	SL_ITEMS:ExitRow(control)
+end
+
+function FurnitureShoppingListItems_OnInitialized(self)
+	SL_ITEMS = FurnitureShoppingListItems:New(self)
+end
+
 function FurnitureShoppingListWindow_Toggle()
     SL_WINDOW.control:SetHidden(not SL_WINDOW.control:IsHidden())
+    -- materials are only queried for an open window
+	if not SL_WINDOW.control:IsHidden() then refresh() end
 end
 
 function FurnitureShoppingListRecipientsRow_OnMouseEnter(control)
@@ -183,79 +340,59 @@ function FurnitureShoppingListRecipients_OnInitialized(self)
 end
 
 function FurnitureShoppingList_ClearButton_OnClicked (control)
-    FurnitureShoppingListData = {}
-    FurnitureShoppingListDataLookup = {}
+	if SAVED then ZO_ClearTable(SAVED.items) end
 
-    SL_RECIPIENTS:RefreshData()
+	refresh()
 end
 
+-- toggles between full mats and the difference
 function FurnitureShoppingList_RemoveOwn_OnClicked (control)
-    for mat, need in pairs(FurnitureShoppingListData) do
-        local link = FurnitureShoppingListDataLookup[mat]
-
-        local a, b, c = GetItemLinkStacks(link)
-
-        local total = a + b + c
-
-        if need - total < 0 then need = 0 else need = need - total end
-
-        FurnitureShoppingListData[mat] = need
-	end
+	subtractOwned = not subtractOwned
+	control:SetText(GetString(subtractOwned and SI_SHOPPINGLIST_FULL or SI_SHOPPINGLIST_OWN))
 
     SL_RECIPIENTS:RefreshData()
 end
 
-function FurnitureShoppingListAdd(itemLink, recipeArray)
-    local ingredients = getIngredients(itemLink, recipeArray)
-
-    if not ingredients then return end
-
-    for mat, cost in pairs(ingredients) do
-        local n = zo_strformat("<<t:1>>", GetItemLinkName(mat))
-
-        FurnitureShoppingListDataLookup[n] = mat
-
-        if FurnitureShoppingListData[n] ~= nil then
-            FurnitureShoppingListData[n] = FurnitureShoppingListData[n] + cost
-        else
-            FurnitureShoppingListData[n] = cost
-        end
-    end
-
-    SL_RECIPIENTS:RefreshData()
+--- @deprecated legacy, recipeArray is no longer used, please use FurnitureShoppingList.Add and FurnitureShoppingList.PromptAdd
+function FurnitureShoppingListAdd(itemLink, recipeArray, quantity)
+	FurnitureShoppingList.Add(itemLink, quantity)
 end
 
+-- quantity defaults to 1; anything below 1 is ignored
+function FurnitureShoppingList.Add(itemLink, quantity)
+	quantity = zo_floor(tonumber(quantity) or 1)
+	if quantity < 1 then return end
+	withLibrary(function(LFC)
+		local itemId = craftableItemId(LFC, itemLink)
+		if not itemId then
+			CHAT_SYSTEM:AddMessage(GetString(FSL_NOT_VALID_ITEM))
+			return
+		end
+		setQuantity(itemId, (SAVED.items[itemId] or 0) + quantity)
+	end)
+end
+
+-- asks for a quantity (prefilled with 1, Enter confirms), then Add
+function FurnitureShoppingList.PromptAdd(itemLink)
+	ZO_Dialogs_ShowDialog(QUANTITY_DIALOG, { itemLink = itemLink }, { mainTextParams = { itemLink }, initialEditText = "1" })
+end
+
+-- legacy entry point: one less of that item, removed at 0
 function FurnitureShoppingListDel(itemLink)
-    local ingredients = getIngredients(itemLink)
-
-    if not ingredients then return end
-
-    for mat, cost in pairs(ingredients) do
-        local n = zo_strformat("<<t:1>>", GetItemLinkName(mat))
-
-        FurnitureShoppingListDataLookup[n] = mat
-
-        local q = FurnitureShoppingListData[n]
-
-        if q ~= nil then
-            local q = q - cost
-
-            if q < 0 then q = 0 end
-
-            FurnitureShoppingListData[n] = q
-        end
-    end
-
-    SL_RECIPIENTS:RefreshData()
+	withLibrary(function(LFC)
+		local itemId = craftableItemId(LFC, itemLink)
+		if itemId and SAVED.items[itemId] then
+			setQuantity(itemId, SAVED.items[itemId] - 1)
+		end
+	end)
 end
 
 function FurnitureShoppingList_Print_OnClicked(control)
     local s = ""
 
-    for mat, need in pairs(FurnitureShoppingListData) do
-        if need > 0 then
-            s = s .. ", " .. mat .. ": " .. need
-        end
+    -- what the materials list shows, so "Subtract Owned" applies here too
+    for _, row in ipairs(SL_RECIPIENTS.masterList) do
+        s = s .. ", " .. row.name .. ": " .. row.need
     end
 
     s, _ = s:gsub("^, ", "")
@@ -278,6 +415,40 @@ function FurnitureShoppingList_Print_OnClicked(control)
     end
 end
 
+function FurnitureShoppingList_OpenImport_OnClicked(control)
+	FurnitureShoppingListImportStatus:SetText("")
+	FurnitureShoppingListImport:SetHidden(false)
+	FurnitureShoppingListImportEdit:TakeFocus()
+end
+
+function FurnitureShoppingList_CloseImport_OnClicked(control)
+	FurnitureShoppingListImport:SetHidden(true)
+end
+
+-- each new furnishing is added once; reports counts only
+function FurnitureShoppingList_Import_OnClicked(control)
+	local ids = parseListText(FurnitureShoppingListImportEdit:GetText())
+	withLibrary(function(LFC)
+		local added, duplicates, unknown, notCraftable = 0, 0, 0, 0
+		for _, id in ipairs(ids) do
+			local entry = LFC.GetEntry(id) -- a blueprint id resolves to its furnishing
+			if not entry then
+				unknown = unknown + 1
+			elseif not next(LFC.GetIngredients(entry.id, entry)) then
+				notCraftable = notCraftable + 1
+			elseif SAVED.items[entry.id] then
+				duplicates = duplicates + 1
+			else
+				SAVED.items[entry.id] = 1
+				added = added + 1
+			end
+		end
+		refresh()
+		FurnitureShoppingListImportEdit:SetText("")
+		FurnitureShoppingListImportStatus:SetText(zo_strformat(GetString(FSL_IMPORT_RESULT), added, duplicates, unknown, notCraftable))
+	end)
+end
+
 function FurnitureShoppingListAdd_Crafting ()
     local li, ri = PROVISIONER:GetSelectedRecipeListIndex(), PROVISIONER:GetSelectedRecipeIndex()
     local nk = ZO_LinkHandler_CreateChatLink(GetRecipeResultItemLink, li, ri)
@@ -298,8 +469,7 @@ function FurnitureShoppingListWindow:InventorySlot_ShowContextMenu (rowControl)
 
     if link and IsItemLinkPlaceableFurniture(link) then
         zo_callLater(function ()
-            AddCustomMenuItem(GetString(FSL_ADD_1_TO_LIST), function() FurnitureShoppingListAdd(link) end)
-            AddCustomMenuItem(GetString(FSL_DEL_1_TO_LIST), function () FurnitureShoppingListDel(link) end)
+            AddCustomMenuItem(GetString(FSL_ADD_TO_LIST), function() FurnitureShoppingList.PromptAdd(link) end)
             ShowMenu(rowControl)
         end, 50)
     end
@@ -309,6 +479,35 @@ local function OnAddonLoaded(eventCode, addonName)
 	if addonName ~= (ADDON_NAME) then return end
 
 	SLASH_COMMANDS["/sl"] = FurnitureShoppingListWindow_Toggle
+
+	SAVED = ZO_SavedVars:NewAccountWide("FurnitureShoppingListSV", 1, nil, { items = {} })
+	SL_ITEMS:RefreshData()
+
+	-- one dialog for both: data.itemLink adds, data.itemId sets that item's quantity (0 removes it)
+	local function confirmQuantity(dialog)
+		local quantity = tonumber(ZO_Dialogs_GetEditBoxText(dialog))
+		if dialog.data.itemId then
+			if quantity then setQuantity(dialog.data.itemId, quantity) end
+		else
+			FurnitureShoppingList.Add(dialog.data.itemLink, quantity)
+		end
+	end
+	ZO_Dialogs_RegisterCustomDialog(QUANTITY_DIALOG, {
+		title = { text = SI_FSL_QUANTITY_TITLE },
+		mainText = { text = SI_FSL_QUANTITY_TEXT },
+		editBox = { textType = TEXT_TYPE_NUMERIC_UNSIGNED_INT, maxInputCharacters = 4, selectAll = true },
+		-- the dialog's edit box only drops focus on Enter; a named handler makes one Enter confirm
+		setup = function(dialog)
+			dialog:GetNamedChild("EditBox"):SetHandler("OnEnter", function() ZO_Dialogs_ButtonKeybindPressed("DIALOG_PRIMARY") end, ADDON_NAME)
+		end,
+		finishedCallback = function(dialog)
+			dialog:GetNamedChild("EditBox"):SetHandler("OnEnter", nil, ADDON_NAME)
+		end,
+		buttons = {
+			{ text = SI_DIALOG_ACCEPT, callback = confirmQuantity },
+			{ text = SI_DIALOG_CANCEL },
+		},
+	})
 
 	EVENT_MANAGER:UnregisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED)
 
@@ -321,8 +520,7 @@ local function OnAddonLoaded(eventCode, addonName)
 				original_OnLinkMouseUp(itemLink, button, control)
 				if (button == 2 and itemLink ~= '') then
                     if IsItemLinkPlaceableFurniture(itemLink) then
-						AddCustomMenuItem(GetString(FSL_ADD_1_TO_LIST), function() FurnitureShoppingListAdd(itemLink) end)
-                        AddCustomMenuItem(GetString(FSL_DEL_1_TO_LIST), function () FurnitureShoppingListDel(itemLink) end)
+						AddCustomMenuItem(GetString(FSL_ADD_TO_LIST), function() FurnitureShoppingList.PromptAdd(itemLink) end)
 						ShowMenu(control)
 					end
 				end

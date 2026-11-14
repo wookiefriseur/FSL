@@ -6,6 +6,7 @@
 ## APIVersion: 101051 101052
 ## DependsOn: LibCustomMenu
 ## OptionalDependsOn: LibFurnitureCatalogue
+## SavedVariables: FurnitureShoppingListSV
 
 Strings.lua
 Bindings.xml
