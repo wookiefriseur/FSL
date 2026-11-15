@@ -1,4 +1,4 @@
-﻿-- Code derived from GodSendPlus, originally by Focus (MIT License).
+-- Code derived from GodSendPlus, originally by Focus (MIT License).
 
 local ADDON_NAME = "FurnitureShoppingList"
 local QUANTITY_DIALOG = "FURNITURE_SHOPPING_LIST_QUANTITY"
