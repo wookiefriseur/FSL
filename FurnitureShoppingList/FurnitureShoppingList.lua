@@ -178,6 +178,7 @@ function FurnitureShoppingListRecipients:New(control)
     manager:SetupRow(control, data)
   end)
   ZO_ScrollList_EnableHighlight(manager.list, "ZO_ThinListHighlight")
+  ZO_ScrollList_AddCommitOnHeightChange(manager.list)
 
   manager:SetAlternateRowBackgrounds(true)
 
@@ -279,6 +280,7 @@ function FurnitureShoppingListItems:New(control)
     manager:SetupRow(rowControl, data)
   end)
   ZO_ScrollList_EnableHighlight(manager.list, "ZO_ThinListHighlight")
+  ZO_ScrollList_AddCommitOnHeightChange(manager.list)
   manager:SetAlternateRowBackgrounds(true)
 
   manager.masterList = {}
@@ -459,16 +461,6 @@ function FurnitureShoppingList.PromptAdd(itemLink)
   )
 end
 
--- legacy entry point: one less of that item, removed at 0
-function FurnitureShoppingListDel(itemLink)
-  withLibrary(function(LFC)
-    local itemId = craftableItemId(LFC, itemLink)
-    if itemId and SAVED.items[itemId] then
-      setQuantity(itemId, SAVED.items[itemId] - 1)
-    end
-  end)
-end
-
 function FurnitureShoppingList_Print_OnClicked(control)
   local s = ""
 
@@ -533,18 +525,12 @@ function FurnitureShoppingList_Import_OnClicked(control)
   end)
 end
 
----@deprecated Please use FurnitureShoppingList.Add instead
 function FurnitureShoppingListAdd_Crafting()
+  if not PROVISIONER_FRAGMENT:IsShowing() then
+    return
+  end
   local li, ri = PROVISIONER:GetSelectedRecipeListIndex(), PROVISIONER:GetSelectedRecipeIndex()
-  local nk = ZO_LinkHandler_CreateChatLink(GetRecipeResultItemLink, li, ri)
-  FurnitureShoppingListAdd(nk)
-end
-
----@deprecated Or maybe not??? TODO
-function FurnitureShoppingListDel_Crafting()
-  local li, ri = PROVISIONER:GetSelectedRecipeListIndex(), PROVISIONER:GetSelectedRecipeIndex()
-  local nk = ZO_LinkHandler_CreateChatLink(GetRecipeResultItemLink, li, ri)
-  FurnitureShoppingListDel(nk)
+  FurnitureShoppingList.PromptAdd(ZO_LinkHandler_CreateChatLink(GetRecipeResultItemLink, li, ri))
 end
 
 function FurnitureShoppingListWindow:InventorySlot_ShowContextMenu(rowControl)
@@ -574,7 +560,21 @@ local function OnAddonLoaded(eventCode, addonName)
   SAVED = ZO_SavedVars:NewAccountWide("FurnitureShoppingListSV", 1, nil, { items = {} })
   SL_ITEMS:RefreshData()
 
-  -- one dialog for both: data.itemLink adds, data.itemId sets that item's quantity (0 removes it)
+  local window = SL_WINDOW.control
+  local function saveFrame()
+    SAVED.window =
+      { left = window:GetLeft(), top = window:GetTop(), width = window:GetWidth(), height = window:GetHeight() }
+  end
+  window:SetHandler("OnMoveStop", saveFrame)
+  window:SetHandler("OnResizeStop", saveFrame)
+  local frame = SAVED.window
+  if frame then
+    window:ClearAnchors()
+    window:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, frame.left, frame.top)
+    window:SetDimensions(frame.width, frame.height)
+  end
+
+  -- one dialog for both: data.itemLink adds, data.itemId sets that item's quantity (enter 0 to remove an item)
   local function confirmQuantity(dialog)
     local quantity = tonumber(ZO_Dialogs_GetEditBoxText(dialog))
     if dialog.data.itemId then
@@ -636,30 +636,10 @@ local function OnAddonLoaded(eventCode, addonName)
   local strip = {
     alignment = KEYBIND_STRIP_ALIGN_CENTER,
 
-    -- Add 1 to list
     {
-      name = GetString(FSL_KB_ADD),
-
-      callback = function()
-        FurnitureShoppingListAdd_Crafting()
-      end,
-
+      name = GetString(FSL_ADD_TO_LIST),
+      callback = FurnitureShoppingListAdd_Crafting,
       keybind = "SL_ADD",
-
-      visible = function()
-        return PROVISIONER:CanPreviewRecipe(PROVISIONER.recipeTree:GetSelectedData())
-      end,
-    },
-
-    -- Del 1 from list
-    {
-      name = GetString(FSL_KB_DEL),
-
-      keybind = "SL_DEL",
-
-      callback = function()
-        FurnitureShoppingListDel_Crafting()
-      end,
 
       visible = function()
         return PROVISIONER:CanPreviewRecipe(PROVISIONER.recipeTree:GetSelectedData())

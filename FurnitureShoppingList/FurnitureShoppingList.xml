@@ -26,16 +26,16 @@
 				
                 <Label name="$(parent)Name" inherits="FurnitureShoppingListLabelField" linkEnabled="true">
                     <Anchor point="LEFT" />
-					<Dimensions x="350"/>
+					<Anchor point="RIGHT" offsetX="-160"/>
 				</Label>
 				
-				<Label name="$(parent)Need" inherits="FurnitureShoppingListLabelField">
-					<Anchor point="LEFT" relativeTo="$(parent)Name" relativePoint="RIGHT"/>
+				<Label name="$(parent)Need" inherits="FurnitureShoppingListLabelField" horizontalAlignment="CENTER">
+					<Anchor point="RIGHT" offsetX="-80"/>
 					<Dimensions x="80"/>
 				</Label>
 
                 <Label name="$(parent)Price" inherits="FurnitureShoppingListLabelField">
-                    <Anchor point="LEFT" relativeTo="$(parent)Need" relativePoint="RIGHT" />
+                    <Anchor point="RIGHT" />
                     <Dimensions x="80" />
                 </Label>
 
@@ -54,19 +54,21 @@
 				<Texture name="$(parent)BG" inherits="ZO_ThinListBgStrip"/>
 				<Label name="$(parent)Name" font="ZoFontGame" wrapMode="ELLIPSIS">
 					<Anchor point="LEFT"/>
-					<Dimensions x="290" y="21"/>
+					<Anchor point="RIGHT" offsetX="-60"/>
+					<Dimensions y="21"/>
 				</Label>
-				<Label name="$(parent)Quantity" font="ZoFontGame">
-					<Anchor point="LEFT" relativeTo="$(parent)Name" relativePoint="RIGHT"/>
+				<Label name="$(parent)Quantity" font="ZoFontGame" horizontalAlignment="CENTER">
+					<Anchor point="RIGHT"/>
 					<Dimensions x="60" y="21"/>
 				</Label>
 			</Controls>
 		</Control>
 		
 	
-		<TopLevelControl name="FurnitureShoppingListWindow" movable="true" mouseEnabled="true" hidden="true">
+		<TopLevelControl name="FurnitureShoppingListWindow" movable="true" clampedToScreen="true" resizeHandleSize="15" mouseEnabled="true" hidden="true">
 			<Anchor point="CENTER" relativeTo="GuiRoot" offsetX="0" offsetY="0"/>
 			<Dimensions x="922" y="475"/>
+			<DimensionConstraints minX="850" minY="300"/>
 			
 			<OnInitialized>
 				FurnitureShoppingListWindow_OnInitialized(self)
@@ -84,7 +86,7 @@
 						<Anchor point="TOPRIGHT" offsetX="40" offsetY="47"/>
 					</Texture>
 					
-					<Label name="$(parent)Title" font="ZoFontWindowTitle" text="Shopping List">
+					<Label name="$(parent)Title" font="ZoFontWindowTitle" text="SI_FSL_WINDOW_TITLE">
 						<Anchor point="TOPLEFT" offsetX="9" offsetY="7"/>
 					</Label>
 				
@@ -103,27 +105,29 @@
 
                     <Control name="FurnitureShoppingListItems">
                         <Anchor point="TOPLEFT"/>
-                        <Dimensions x="400" y="475"/>
+                        <Anchor point="BOTTOMRIGHT" relativePoint="BOTTOM" offsetX="-61"/>
                         <OnInitialized>
                             FurnitureShoppingListItems_OnInitialized(self)
                         </OnInitialized>
                         <Controls>
                             <Control name="$(parent)Headers">
                                 <Anchor point="TOPLEFT" offsetX="-2" offsetY="51"/>
-                                <Dimensions x="390" y="28"/>
+                                <Anchor point="TOPRIGHT" offsetX="-12" offsetY="51"/>
+                                <Dimensions y="28"/>
                                 <Controls>
                                     <Control name="$(parent)Name" inherits="ZO_SortHeader">
                                         <OnInitialized>
-                                            ZO_SortHeader_Initialize(self, "ITEM", "name", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
+                                            ZO_SortHeader_Initialize(self, GetString(SI_FSL_HEADER_ITEM), "name", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
                                         </OnInitialized>
                                         <Anchor point="TOPLEFT" offsetX="15"/>
-                                        <Dimensions x="290" y="28"/>
+                                        <Anchor point="TOPRIGHT" offsetX="-76"/>
+                                        <Dimensions y="28"/>
                                     </Control>
                                     <Control name="$(parent)Quantity" inherits="ZO_SortHeader">
                                         <OnInitialized>
-                                            ZO_SortHeader_Initialize(self, "QTY", "quantity", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
+                                            ZO_SortHeader_Initialize(self, GetString(SI_FSL_HEADER_QUANTITY), "quantity", ZO_SORT_ORDER_UP, TEXT_ALIGN_CENTER, "ZoFontGameLargeBold")
                                         </OnInitialized>
-                                        <Anchor point="TOPLEFT" relativeTo="$(parent)Name" relativePoint="TOPRIGHT"/>
+                                        <Anchor point="TOPRIGHT" offsetX="-16"/>
                                         <Dimensions x="60" y="28"/>
                                     </Control>
                                 </Controls>
@@ -131,8 +135,7 @@
 
                             <Control name="$(parent)List" inherits="ZO_ScrollList">
                                 <Anchor point="TOPLEFT" relativeTo="$(parent)Headers" relativePoint="BOTTOMLEFT" offsetX="8"/>
-                                <Anchor point="TOPRIGHT" relativeTo="$(parent)Headers" relativePoint="BOTTOMRIGHT"/>
-                                <Dimensions y="331"/>
+                                <Anchor point="BOTTOMRIGHT" offsetX="-12" offsetY="-47"/>
                             </Control>
 
                             <Button name="$(parent)ImportButton" inherits="ZO_DefaultButton" text="SI_SHOPPINGLIST_IMPORT">
@@ -146,38 +149,40 @@
                     </Control>
 
                     <Control name="FurnitureShoppingListRecipients">
-                        <Anchor point="TOPRIGHT"/>
-                        <Dimensions x="522" y="475"/>
+                        <Anchor point="TOPLEFT" relativePoint="TOP" offsetX="-61"/>
+                        <Anchor point="BOTTOMRIGHT"/>
                         <OnInitialized>
                             FurnitureShoppingListRecipients_OnInitialized(self)
                         </OnInitialized>
                         <Controls>
                             <Control name="$(parent)Headers">
                                 <Anchor point="TOPLEFT" offsetX="-2" offsetY="51"/>
-                                <Dimensions x="510" y="28"/>
+                                <Anchor point="TOPRIGHT" offsetX="-12" offsetY="51"/>
+                                <Dimensions y="28"/>
                                 <Controls>
                                 
                                     <Control name="$(parent)Name" inherits="ZO_SortHeader">
                                         <OnInitialized>
-                                            ZO_SortHeader_Initialize(self, "NAME", "name", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
+                                            ZO_SortHeader_Initialize(self, GetString(SI_FSL_HEADER_MATERIAL), "name", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
                                         </OnInitialized>
                                         <Anchor point="TOPLEFT" offsetX="15"/>
-                                        <Dimensions x="350" y="28"/>
+                                        <Anchor point="TOPRIGHT" offsetX="-176"/>
+                                        <Dimensions y="28"/>
                                     </Control>
                                     
                                     <Control name="$(parent)Need" inherits="ZO_SortHeader">
                                         <OnInitialized>
-                                            ZO_SortHeader_Initialize(self, "NEED", "need", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
+                                            ZO_SortHeader_Initialize(self, GetString(SI_FSL_HEADER_NEED), "need", ZO_SORT_ORDER_UP, TEXT_ALIGN_CENTER, "ZoFontGameLargeBold")
                                         </OnInitialized>
-                                        <Anchor point="TOPLEFT" relativeTo="$(parent)Name" relativePoint="TOPRIGHT"/>
+                                        <Anchor point="TOPRIGHT" offsetX="-96"/>
                                         <Dimensions x="80" y="28"/>
                                     </Control>
 
                                     <Control name="$(parent)Price" inherits="ZO_SortHeader">
                                         <OnInitialized>
-                                            ZO_SortHeader_Initialize(self, "PRICE", "price", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
+                                            ZO_SortHeader_Initialize(self, GetString(SI_FSL_HEADER_PRICE), "price", ZO_SORT_ORDER_UP, TEXT_ALIGN_LEFT, "ZoFontGameLargeBold")
                                         </OnInitialized>
-                                        <Anchor point="TOPLEFT" relativeTo="$(parent)Need" relativePoint = "TOPRIGHT" />
+                                        <Anchor point="TOPRIGHT" offsetX="-16" />
                                         <Dimensions x="80" y="28" />
                                     </Control>
                         
@@ -186,13 +191,12 @@
                             
                             <Control name="$(parent)List" inherits="ZO_ScrollList">
                                 <Anchor point="TOPLEFT" relativeTo="$(parent)Headers" relativePoint="BOTTOMLEFT" offsetX="8"/>
-                                <Anchor point="TOPRIGHT" relativeTo="$(parent)Headers" relativePoint="BOTTOMRIGHT"/>
-                                <Dimensions y="331"/>
+                                <Anchor point="BOTTOMRIGHT" offsetX="-12" offsetY="-47"/>
                             </Control>	
 
                             <Label name="$(parent)Status" font="ZoFontGame" horizontalAlignment="CENTER" hidden="true">
-                                <Anchor point="TOP" relativeTo="$(parent)List" offsetY="40"/>
-                                <Dimensions x="460"/>
+                                <Anchor point="TOPLEFT" relativeTo="$(parent)List" offsetY="40"/>
+                                <Anchor point="TOPRIGHT" relativeTo="$(parent)List" relativePoint="TOPRIGHT" offsetY="40"/>
                             </Label>
 
                             <Button name="$(parent)ClearButton" inherits="ZO_DefaultButton" color="INTERFACE_COLOR_TYPE_TEXT_COLORS:INTERFACE_TEXT_COLOR_NORMAL" text="SI_SHOPPINGLIST_CLEAR">

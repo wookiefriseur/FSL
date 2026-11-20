@@ -7,7 +7,8 @@
 ## DependsOn: LibCustomMenu LibFurnitureCatalogue>=1003000
 ## SavedVariables: FurnitureShoppingListSV
 
-Strings.lua
+locale\en.lua
+locale\$(language).lua
 Bindings.xml
 FurnitureShoppingList.lua
 FurnitureShoppingList.xml

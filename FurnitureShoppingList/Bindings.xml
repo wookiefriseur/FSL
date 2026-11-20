@@ -4,9 +4,6 @@
       <Action name="SL_ADD">
           <Down>FurnitureShoppingListAdd_Crafting()</Down>
       </Action>
-      <Action name="SL_DEL">
-          <Down>FurnitureShoppingListDel_Crafting()</Down>
-      </Action>
       <Action name="SL_TOGGLE">
           <Down>FurnitureShoppingListWindow_Toggle()</Down>
       </Action>
