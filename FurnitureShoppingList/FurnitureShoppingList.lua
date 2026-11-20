@@ -466,15 +466,21 @@ function FurnitureShoppingList_Print_OnClicked(control)
   s = s:gsub("^, ", "")
 
   if #s > MAX_TEXT_CHAT_INPUT_CHARACTERS then
-    if SCENE_MANAGER:IsShowing("mailSend") then
-      -- then check the
+    -- too long for chat: paste into new mail
+    local body = s:gsub(", ", "\n")
+    local function toMail()
+      -- don't overwrite a draft
       if MAIL_SEND.body:GetText() ~= "" then
         CHAT_SYSTEM:AddMessage(GetString(FSL_OUTPUT_TOO_LONG))
       else
-        MAIL_SEND.body:SetText(s:gsub(", ", "\n"))
+        MAIL_SEND.body:SetText(body)
       end
+    end
+    if SCENE_MANAGER:IsShowing("mailSend") then
+      toMail()
     else
-      CHAT_SYSTEM:AddMessage(GetString(FSL_OUTPUT_TOO_LONG))
+      MAIN_MENU_KEYBOARD:ShowScene("mailSend")
+      SCENE_MANAGER:CallWhen("mailSend", SCENE_SHOWN, toMail)
     end
   elseif #s == 0 then
     -- do nothing
