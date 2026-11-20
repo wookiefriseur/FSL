@@ -4,7 +4,6 @@ local ADDON_NAME = "FurnitureShoppingList"
 local QUANTITY_DIALOG = "FURNITURE_SHOPPING_LIST_QUANTITY"
 
 -- Public API (for FurnitureCatalogue etc): version, Add, PromptAdd
--- TODO: Legacy FurnitureShoppingListAdd/Del stay for now, check who's using it
 FurnitureShoppingList = {}
 do
   local addOnManager = GetAddOnManager()
@@ -17,7 +16,7 @@ do
 end
 
 local SL_WINDOW = nil
-SL_RECIPIENTS = nil
+local SL_RECIPIENTS = nil
 local SL_ITEMS = nil
 local SAVED = nil -- saved vars: SAVED.items[itemId] = quantity
 local subtractOwned = false
@@ -423,11 +422,6 @@ function FurnitureShoppingList_RemoveOwn_OnClicked(control)
   SL_RECIPIENTS:RefreshData()
 end
 
---- @deprecated legacy, recipeArray is no longer used, please use FurnitureShoppingList.Add and FurnitureShoppingList.PromptAdd
-function FurnitureShoppingListAdd(itemLink, recipeArray, quantity)
-  FurnitureShoppingList.Add(itemLink, quantity)
-end
-
 --- Adds item to the list, quantity defaults to 1; anything below 1 is ignored. showWindow opens the window once the item is added
 local function addItem(itemLink, quantity, showWindow)
   quantity = zo_floor(tonumber(quantity) or 1)
@@ -469,7 +463,7 @@ function FurnitureShoppingList_Print_OnClicked(control)
     s = s .. ", " .. row.name .. ": " .. row.need
   end
 
-  s, _ = s:gsub("^, ", "")
+  s = s:gsub("^, ", "")
 
   if #s > MAX_TEXT_CHAT_INPUT_CHARACTERS then
     if SCENE_MANAGER:IsShowing("mailSend") then
