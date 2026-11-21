@@ -24,7 +24,7 @@ All credits for FurnitureShoppingList go to @noobiandus, who is unfortunately mi
 
 [COLOR=wheat][SIZE=3]Main window[/SIZE][/COLOR][LIST]
 [*][B]Subtract Owned[/B]: show only materials that you are missing. [B]Show Full Need[/B] switches back
-[*][B]Print[/B]: pastes materials into chat. A long list goes into a new mail instead
+[*][B]Print[/B]: opens the output window. It splits the materials into pages that fit a chat message or a mail, as item links or plain names
 [*][B]Clear[/B]: empties the list
 [*]Window is resizeable[/LIST]
 

@@ -123,6 +123,9 @@ local function parseListText(text)
   return ids
 end
 
+---Refresh print window content
+local refreshOutput
+
 local function refresh()
   if SL_ITEMS then
     SL_ITEMS:RefreshData()
@@ -130,6 +133,7 @@ local function refresh()
   if SL_RECIPIENTS then
     SL_RECIPIENTS:RefreshData()
   end
+  refreshOutput()
 end
 
 -- below 1 removes the item
@@ -229,10 +233,12 @@ function FurnitureShoppingListRecipients:BuildMasterList()
         local cost = getMM(total.link) or 0
         local this_row = zo_floor(cost * need)
         mm_total = mm_total + this_row
-        table.insert(
-          self.masterList,
-          { name = zo_strformat("<<t:1>>", GetItemLinkName(total.link)), link = total.link, need = need, price = this_row }
-        )
+        table.insert(self.masterList, {
+          name = zo_strformat("<<t:1>>", GetItemLinkName(total.link)),
+          link = total.link,
+          need = need,
+          price = this_row,
+        })
       end
     end
   end
@@ -420,6 +426,7 @@ function FurnitureShoppingList_RemoveOwn_OnClicked(control)
   control:SetText(GetString(subtractOwned and SI_SHOPPINGLIST_FULL or SI_SHOPPINGLIST_OWN))
 
   SL_RECIPIENTS:RefreshData()
+  refreshOutput()
 end
 
 --- Adds item to the list, quantity defaults to 1; anything below 1 is ignored. showWindow opens the window once the item is added
@@ -455,37 +462,144 @@ function FurnitureShoppingList.PromptAdd(itemLink)
   )
 end
 
-function FurnitureShoppingList_Print_OnClicked(control)
-  local s = ""
+-- Print: the list as pages that each fit one chat message or one mail, shown in the output window
+local PAGE_LIMIT = { chat = MAX_TEXT_CHAT_INPUT_CHARACTERS, mail = MAIL_MAX_BODY_CHARACTERS }
+local PAGE_COUNTER = "(%d/%d)"
+local printPages, printPage = {}, 1
 
-  -- what the materials list shows, so "Subtract Owned" applies here too
-  for _, row in ipairs(SL_RECIPIENTS.masterList) do
-    s = s .. ", " .. row.name .. ": " .. row.need
-  end
+-- "FSL (2/4)": what a mail of several is titled; a single one is just "FSL"
+local function pageTitle(page, pages)
+  return pages > 1 and "FSL " .. PAGE_COUNTER:format(page, pages) or "FSL"
+end
 
-  s = s:gsub("^, ", "")
 
-  if #s > MAX_TEXT_CHAT_INPUT_CHARACTERS then
-    -- too long for chat: paste into new mail
-    local body = s:gsub(", ", "\n")
-    local function toMail()
-      -- don't overwrite a draft
-      if MAIL_SEND.body:GetText() ~= "" then
-        CHAT_SYSTEM:AddMessage(GetString(FSL_OUTPUT_TOO_LONG))
+
+-- tokens packed into pages of at most `limit` bytes (pagination on overflow).
+-- First one like "FSL (1/4): " so users see where the list starts, the others are just the counter "(2/4): "
+local function paginate(tokens, separator, limit, counted)
+  local function pack(room)
+    local pages, current = {}, nil
+    for _, token in ipairs(tokens) do
+      if current and #current + #separator + #token <= room then
+        current = current .. separator .. token
       else
-        MAIL_SEND.body:SetText(body)
+        pages[#pages + 1] = current
+        current = token
       end
     end
-    if SCENE_MANAGER:IsShowing("mailSend") then
-      toMail()
-    else
-      MAIN_MENU_KEYBOARD:ShowScene("mailSend")
-      SCENE_MANAGER:CallWhen("mailSend", SCENE_SHOWN, toMail)
+    pages[#pages + 1] = current
+    return pages
+  end
+  local pages = pack(limit)
+  if counted and #pages > 1 then
+    pages = pack(limit - #(pageTitle(999, 999) .. ": "))
+    for i, page in ipairs(pages) do
+      pages[i] = (i == 1 and pageTitle(i, #pages) or PAGE_COUNTER:format(i, #pages)) .. ": " .. page
     end
-  elseif #s == 0 then
-    -- do nothing
+  end
+  return pages
+end
+
+local function showPrintPage()
+  printPage = zo_clamp(printPage, 1, zo_max(#printPages, 1))
+  FurnitureShoppingListOutputEdit:SetText(printPages[printPage] or "")
+  FurnitureShoppingListOutputPage:SetText(printPage .. "/" .. zo_max(#printPages, 1))
+  FurnitureShoppingListOutputPrevButton:SetEnabled(printPage > 1)
+  FurnitureShoppingListOutputNextButton:SetEnabled(printPage < #printPages)
+  FurnitureShoppingListOutputSendButton:SetEnabled(#printPages > 0)
+  FurnitureShoppingListOutputSendButton:SetText(
+    GetString(SAVED.print.mail and SI_FSL_PRINT_TO_MAIL or SI_FSL_PRINT_TO_CHAT)
+  )
+end
+
+-- what both panes show, in their order, so "Subtract Owned" applies here too
+local function buildPrintPages()
+  local options = SAVED.print
+  local function shown(row)
+    -- bracket style, as chat links look
+    return options.links and (row.link:gsub("^|H%d", "|H1")) or row.name
+  end
+  local tokens = {}
+  for _, entry in ipairs(ZO_ScrollList_GetDataList(SL_RECIPIENTS.list)) do
+    tokens[#tokens + 1] = shown(entry.data) .. ": " .. entry.data.need
+  end
+  if options.furnishings and #tokens > 0 then
+    local label = GetString(FSL_PRINT_FOR) .. " "
+    for _, entry in ipairs(ZO_ScrollList_GetDataList(SL_ITEMS.list)) do
+      tokens[#tokens + 1] = label .. entry.data.quantity .. "x " .. shown(entry.data)
+      label = ""
+    end
+  end
+  if options.mail then
+    printPages = paginate(tokens, "\n", PAGE_LIMIT.mail) -- the subject carries the page number
   else
-    StartChatInput(s)
+    printPages = paginate(tokens, ", ", PAGE_LIMIT.chat, true)
+  end
+  showPrintPage()
+end
+
+-- the list changed while the output window is open
+function refreshOutput()
+  if FurnitureShoppingListOutput and not FurnitureShoppingListOutput:IsHidden() then
+    buildPrintPages()
+  end
+end
+
+function FurnitureShoppingList_Print_OnClicked(control)
+  local function checkbox(name, key, label)
+    local button = FurnitureShoppingListOutput:GetNamedChild(name)
+    ZO_CheckButton_SetLabelText(button, GetString(label))
+    ZO_CheckButton_SetCheckState(button, SAVED.print[key] == true)
+    ZO_CheckButton_SetToggleFunction(button, function(_, checked)
+      SAVED.print[key] = checked
+      printPage = 1
+      buildPrintPages()
+    end)
+  end
+  checkbox("Links", "links", SI_FSL_PRINT_LINKS)
+  checkbox("Furnishings", "furnishings", SI_FSL_PRINT_FURNISHINGS)
+  checkbox("Mail", "mail", SI_FSL_PRINT_MAIL)
+  printPage = 1
+  FurnitureShoppingListOutput:SetHidden(false)
+  buildPrintPages()
+end
+
+function FurnitureShoppingList_CloseOutput_OnClicked(control)
+  FurnitureShoppingListOutput:SetHidden(true)
+end
+
+function FurnitureShoppingList_OutputPage_OnClicked(step)
+  printPage = printPage + step
+  showPrintPage()
+end
+
+-- puts the shown page into the chat input or a new mail and moves on; sending stays with the player
+function FurnitureShoppingList_OutputSend_OnClicked(control)
+  local page = printPages[printPage]
+  if not page then
+    return
+  end
+  if not SAVED.print.mail then
+    StartChatInput(page)
+    FurnitureShoppingList_OutputPage_OnClicked(1)
+    return
+  end
+  local title = pageTitle(printPage, #printPages)
+  local function toMail()
+    -- don't overwrite a draft; the subject is only set once the body is known to be free
+    if MAIL_SEND.body:GetText() ~= "" then
+      CHAT_SYSTEM:AddMessage(GetString(FSL_MAIL_NOT_EMPTY))
+    else
+      MAIL_SEND.subject:SetText(title)
+      MAIL_SEND.body:SetText(page)
+      FurnitureShoppingList_OutputPage_OnClicked(1)
+    end
+  end
+  if SCENE_MANAGER:IsShowing("mailSend") then
+    toMail()
+  else
+    MAIN_MENU_KEYBOARD:ShowScene("mailSend")
+    SCENE_MANAGER:CallWhen("mailSend", SCENE_SHOWN, toMail)
   end
 end
 
@@ -557,7 +671,7 @@ local function OnAddonLoaded(eventCode, addonName)
   SLASH_COMMANDS["/sl"] = FurnitureShoppingListWindow_Toggle
   SLASH_COMMANDS["/fsl"] = FurnitureShoppingListWindow_Toggle
 
-  SAVED = ZO_SavedVars:NewAccountWide("FurnitureShoppingListSV", 1, nil, { items = {} })
+  SAVED = ZO_SavedVars:NewAccountWide("FurnitureShoppingListSV", 1, nil, { items = {}, print = { links = true } })
   SL_ITEMS:RefreshData()
 
   local window = SL_WINDOW.control

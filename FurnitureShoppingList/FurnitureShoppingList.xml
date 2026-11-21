@@ -280,5 +280,75 @@
 			</Controls>
 		</TopLevelControl>
 
+		<TopLevelControl name="FurnitureShoppingListOutput" movable="true" mouseEnabled="true" hidden="true" tier="MEDIUM">
+			<Anchor point="CENTER" relativeTo="GuiRoot"/>
+			<Dimensions x="600" y="400"/>
+			<Controls>
+				<Backdrop name="$(parent)BG" inherits="ZO_DefaultBackdrop">
+					<AnchorFill/>
+				</Backdrop>
+				<Label name="$(parent)Title" font="ZoFontWindowTitle" text="SI_FSL_PRINT_TITLE">
+					<Anchor point="TOPLEFT" offsetX="9" offsetY="7"/>
+				</Label>
+				<Button name="$(parent)CloseButton" inherits="ZO_CloseButton">
+					<Anchor point="TOPRIGHT" offsetX="-7" offsetY="5"/>
+					<Dimensions x="18" y="20"/>
+					<OnClicked>
+						FurnitureShoppingList_CloseOutput_OnClicked(self)
+					</OnClicked>
+				</Button>
+				<Label name="$(parent)Hint" font="ZoFontGame" text="SI_FSL_PRINT_HINT">
+					<Anchor point="TOPLEFT" offsetX="12" offsetY="50"/>
+					<Anchor point="TOPRIGHT" offsetX="-12" offsetY="50"/>
+				</Label>
+				<Button name="$(parent)Links" inherits="ZO_CheckButton">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)Hint" relativePoint="BOTTOMLEFT" offsetY="12"/>
+				</Button>
+				<Button name="$(parent)Furnishings" inherits="ZO_CheckButton">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)Links" offsetX="190"/>
+				</Button>
+				<Button name="$(parent)Mail" inherits="ZO_CheckButton">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)Links" offsetX="380"/>
+				</Button>
+				<Backdrop name="$(parent)EditBg" inherits="ZO_MultiLineEditBackdrop_Keyboard">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)Links" relativePoint="BOTTOMLEFT" offsetY="12"/>
+					<Anchor point="BOTTOMRIGHT" offsetX="-12" offsetY="-50"/>
+					<Controls>
+						<EditBox name="FurnitureShoppingListOutputEdit" inherits="ZO_DefaultEditMultiLineForBackdrop">
+							<OnInitialized>
+								-- a page is at most one mail body
+								self:SetMaxInputChars(1000)
+							</OnInitialized>
+						</EditBox>
+					</Controls>
+				</Backdrop>
+				<Button name="$(parent)PrevButton" inherits="ZO_DefaultButton" text="&lt;">
+					<Anchor point="BOTTOMLEFT" offsetX="12" offsetY="-12"/>
+					<Dimensions x="40" y="27"/>
+					<OnClicked>
+						FurnitureShoppingList_OutputPage_OnClicked(-1)
+					</OnClicked>
+				</Button>
+				<Label name="$(parent)Page" font="ZoFontGame" horizontalAlignment="CENTER">
+					<Anchor point="LEFT" relativeTo="$(parent)PrevButton" relativePoint="RIGHT"/>
+					<Dimensions x="70"/>
+				</Label>
+				<Button name="$(parent)NextButton" inherits="ZO_DefaultButton" text="&gt;">
+					<Anchor point="LEFT" relativeTo="$(parent)Page" relativePoint="RIGHT"/>
+					<Dimensions x="40" y="27"/>
+					<OnClicked>
+						FurnitureShoppingList_OutputPage_OnClicked(1)
+					</OnClicked>
+				</Button>
+				<Button name="$(parent)SendButton" inherits="ZO_DefaultButton" text="SI_FSL_PRINT_TO_CHAT">
+					<Anchor point="BOTTOMRIGHT" offsetX="-12" offsetY="-12"/>
+					<Dimensions x="150" y="27"/>
+					<OnClicked>
+						FurnitureShoppingList_OutputSend_OnClicked(self)
+					</OnClicked>
+				</Button>
+			</Controls>
+		</TopLevelControl>
+
     </Controls>
 </GuiXml>
