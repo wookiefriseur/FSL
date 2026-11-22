@@ -145,8 +145,8 @@ end
 local function promptQuantity(data)
   ZO_Dialogs_ShowDialog(
     QUANTITY_DIALOG,
-    { itemId = data.itemId },
-    { mainTextParams = { data.link }, initialEditText = tostring(data.quantity) }
+    { itemId = data.itemId, quantity = data.quantity },
+    { mainTextParams = { data.link } }
   )
 end
 
@@ -458,7 +458,7 @@ function FurnitureShoppingList.PromptAdd(itemLink)
   ZO_Dialogs_ShowDialog(
     QUANTITY_DIALOG,
     { itemLink = itemLink },
-    { mainTextParams = { itemLink }, initialEditText = "1" }
+    { mainTextParams = { itemLink } }
   )
 end
 
@@ -689,31 +689,50 @@ local function OnAddonLoaded(eventCode, addonName)
   end
 
   -- one dialog for both: data.itemLink adds, data.itemId sets that item's quantity (enter 0 to remove an item)
-  local function confirmQuantity(dialog)
-    local quantity = tonumber(ZO_Dialogs_GetEditBoxText(dialog))
+  local dialog = FurnitureShoppingListQuantityDialog
+  local title = dialog:GetNamedChild("Title")
+  title:SetFont("$(STONE_TABLET_FONT)|28|soft-shadow-thick")
+  title:SetModifyTextType(MODIFY_TEXT_TYPE_NONE)
+  local spinner = ZO_Spinner:New(dialog:GetNamedChild("Spinner"), 1, 9999)
+  local edit = dialog:GetNamedChild("SpinnerDisplay")
+  edit:SetMaxInputChars(4)
+  edit:SetHandler("OnEnter", function()
+    edit:LoseFocus() -- spinner takes typed num on focus loss
+    ZO_Dialogs_ButtonKeybindPressed("DIALOG_PRIMARY")
+  end)
+  edit:SetHandler("OnEscape", function()
+    ZO_Dialogs_ButtonKeybindPressed("DIALOG_NEGATIVE")
+  end)
+
+  local function confirmQuantity()
+    -- accepted with the field still focused: take what is typed there
+    local typed = tonumber(edit:GetText())
+    if typed then
+      spinner:SetValue(typed)
+    end
+    local quantity = spinner:GetValue()
     if dialog.data.itemId then
-      if quantity then
-        setQuantity(dialog.data.itemId, quantity)
-      end
+      setQuantity(dialog.data.itemId, quantity)
     else
       addItem(dialog.data.itemLink, quantity, true) -- an interactive add, so show the result
     end
   end
   ZO_Dialogs_RegisterCustomDialog(QUANTITY_DIALOG, {
+    customControl = dialog,
     title = { text = SI_FSL_QUANTITY_TITLE },
     mainText = { text = SI_FSL_QUANTITY_TEXT },
-    editBox = { textType = TEXT_TYPE_NUMERIC_UNSIGNED_INT, maxInputCharacters = 4, selectAll = true },
-    setup = function(dialog)
-      dialog:GetNamedChild("EditBox"):SetHandler("OnEnter", function()
-        ZO_Dialogs_ButtonKeybindPressed("DIALOG_PRIMARY")
-      end, ADDON_NAME)
+    setup = function(_, data)
+      spinner:SetMinMax(data.itemId and 0 or 1, 9999)
+      spinner:SetValue(data.quantity or 1, true)
+      edit:TakeFocus()
+      edit:SelectAll()
     end,
-    finishedCallback = function(dialog)
-      dialog:GetNamedChild("EditBox"):SetHandler("OnEnter", nil, ADDON_NAME)
+    finishedCallback = function()
+      edit:LoseFocus()
     end,
     buttons = {
-      { text = SI_DIALOG_ACCEPT, callback = confirmQuantity },
-      { text = SI_DIALOG_CANCEL },
+      { control = dialog:GetNamedChild("Accept"), text = SI_DIALOG_ACCEPT, callback = confirmQuantity },
+      { control = dialog:GetNamedChild("Cancel"), text = SI_DIALOG_CANCEL },
     },
   })
 
