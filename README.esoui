@@ -1,4 +1,4 @@
-[SIZE=5]Please use this instead of the original AddOn[/SIZE]
+[SIZE=5][COLOR=#ff0000]Please use this instead of the original AddOn[/COLOR][/SIZE]
 
 Collects furnishings you want to craft in a shopping list and shows the required materials.
 
@@ -7,27 +7,20 @@ All credits for FurnitureShoppingList go to @noobiandus, who is unfortunately mi
 
 [COLOR=wheat][SIZE=6]Links[/SIZE][/COLOR][LIST]
 [*][URL="https://github.com/wookiefriseur/FSL"]GitHub: source and issues[/URL]
-[*][URL="https://wookiefriseur.github.io/LFC/"]Web interface for creating lists compatible with FSL 2.0 (not released yet)[/URL][/LIST]
-[COLOR=wheat][SIZE=6]Depends on[/SIZE][/COLOR][LIST]
+[*][URL="https://wookiefriseur.github.io/LFC/"]Web interface for creating lists compatible with FSL 2.0[/URL][/LIST][COLOR=wheat][SIZE=6]Depends on[/SIZE][/COLOR][LIST]
 [*][URL="https://www.esoui.com/downloads/info4804-LibFurnitureCatalogue.html"]LibFurnitureCatalogue[/URL] (required)
 [*][URL="https://www.esoui.com/downloads/info1146-LibCustomMenu.html"]LibCustomMenu[/URL] (required)
 [*][URL="https://www.esoui.com/downloads/info1617-FurnitureCatalogue.html"]FurnitureCatalogue[/URL] (optional): add items from the catalogue, export lists to import here
 [*]Master Merchant (optional): price estimate for the materials
-[*]LibPrice (planned): will replace MM so prices can come from different sources[/LIST]
-
-[COLOR=wheat][SIZE=6]How to use[/SIZE][/COLOR]
+[*]LibPrice (planned): will replace MM so prices can come from different sources[/LIST][COLOR=wheat][SIZE=6]How to use[/SIZE][/COLOR]
 
 [COLOR=wheat][SIZE=3]Add furnishings[/SIZE][/COLOR][LIST]
-[*]Item menus: right-click a craftable furnishing or blueprint -> [B]Add to shopping list[/B], then enter amount
+[*]Item menues: right-click a craftable furnishing or blueprint -> [B]Add to shopping list[/B], then enter amount
 [*]Crafting stations: select the recipe and press the [B]Add to Shopping List[/B] hotkey
-[*][B]Import List[/B]: paste lines exported from FurnitureCatalogue or the web interface, or use plain item ids. Each craftable item is added once[/LIST]
-
-[COLOR=wheat][SIZE=3]Main window[/SIZE][/COLOR][LIST]
+[*][B]Import List[/B]: paste lines exported from FurnitureCatalogue or the web interface, or use plain item ids. Each craftable item is added once[/LIST][COLOR=wheat][SIZE=3]Main window[/SIZE][/COLOR][LIST]
 [*][B]Subtract Owned[/B]: show only materials that you are missing. [B]Show Full Need[/B] switches back
-[*][B]Print[/B]: opens the output window. It splits the materials into pages that fit a chat message or a mail, as item links or plain names
+[*][B]Print[/B]: pastes materials into chat or mail. Long text gets split so you can send each page separately.
 [*][B]Clear[/B]: empties the list
-[*]Window is resizeable[/LIST]
-
-[COLOR=wheat][SIZE=6]Chat commands and keys[/SIZE][/COLOR][LIST]
+[*]Window is resizeable[/LIST][COLOR=wheat][SIZE=6]Chat commands and keys[/SIZE][/COLOR][LIST]
 [*][B]/sl[/B] or [B]/fsl[/B] -> open or close the main window
 [*]Controls -> FurnitureShoppingList: keys for [B]Toggle Shopping List window[/B] and [B]Add to Shopping List[/B][/LIST]
