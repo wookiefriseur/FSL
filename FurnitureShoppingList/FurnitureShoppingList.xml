@@ -287,7 +287,7 @@
 				<Backdrop name="$(parent)BG" inherits="ZO_DefaultBackdrop">
 					<AnchorFill/>
 				</Backdrop>
-				<Label name="$(parent)Title" font="ZoFontWindowTitle" text="SI_FSL_PRINT_TITLE">
+				<Label name="$(parent)Title" font="$(STONE_TABLET_FONT)|28|soft-shadow-thick" text="SI_FSL_PRINT_TITLE">
 					<Anchor point="TOPLEFT" offsetX="9" offsetY="7"/>
 				</Label>
 				<Button name="$(parent)CloseButton" inherits="ZO_CloseButton">
