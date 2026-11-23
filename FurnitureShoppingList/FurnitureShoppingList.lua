@@ -455,11 +455,7 @@ end
 
 -- asks for a quantity (prefilled with 1, Enter confirms), then Add
 function FurnitureShoppingList.PromptAdd(itemLink)
-  ZO_Dialogs_ShowDialog(
-    QUANTITY_DIALOG,
-    { itemLink = itemLink },
-    { mainTextParams = { itemLink } }
-  )
+  ZO_Dialogs_ShowDialog(QUANTITY_DIALOG, { itemLink = itemLink }, { mainTextParams = { itemLink } })
 end
 
 -- Print: the list as pages that each fit one chat message or one mail, shown in the output window
@@ -471,8 +467,6 @@ local printPages, printPage = {}, 1
 local function pageTitle(page, pages)
   return pages > 1 and "FSL " .. PAGE_COUNTER:format(page, pages) or "FSL"
 end
-
-
 
 -- tokens packed into pages of at most `limit` bytes (pagination on overflow).
 -- First one like "FSL (1/4): " so users see where the list starts, the others are just the counter "(2/4): "
