@@ -1,7 +1,7 @@
 ## Title: FurnitureShoppingList
 ## Description: It makes a shopping list.
-## Version: 1.4.11
-## AddOnVersion: 1004011
+## Version: 2.0.0
+## AddOnVersion: 2000000
 ## Author: @noobanidus
 ## APIVersion: 101051 101052
 ## DependsOn: LibCustomMenu>=730 LibFurnitureCatalogue>=1003000
