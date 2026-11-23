@@ -1,7 +1,7 @@
 2.0.0 (2026-11-23)
 - major overhaul of shopping list (now with an item list)
 - improved print to chat/mail (pagination and options)
-- import lists from Furniture Catalogue)
+- import lists from Furniture Catalogue
 - shopping list saved between sessions
 - additional slash command: /fsl
 - switch to LibFurnitureCatalogue (Furniture Catalogue optional now)
