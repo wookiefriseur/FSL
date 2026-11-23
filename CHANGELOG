@@ -1,3 +1,11 @@
+2.0.0 (2026-11-23)
+- major overhaul of shopping list (now with an item list)
+- improved print to chat/mail (pagination and options)
+- import lists from Furniture Catalogue)
+- shopping list saved between sessions
+- additional slash command: /fsl
+- switch to LibFurnitureCatalogue (Furniture Catalogue optional now)
+
 1.4.11: Added an API bump and checked the integration, it's still working!
 
 1.4.1: FurnitureCatalogue had an API change in version 2.0 - changed this to ensure compatibility
