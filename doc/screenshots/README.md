@@ -1,6 +1,6 @@
 # ESOUI screenshots
 
-Screenshots for https://www.esoui.com/downloads/info1865-FurnitureShoppingListFurC2.0patch.html
+Screenshots for https://www.esoui.com/downloads/info1865-FurnitureShoppingListpatched.html
 
 | File                   | Caption                                                                     |
 |------------------------|-----------------------------------------------------------------------------|

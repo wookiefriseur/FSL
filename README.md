@@ -1,8 +1,8 @@
-# Furniture Shopping List (FurC 2.0 patch)
+# FurnitureShoppingList (patched)
 
 Originally written by noobiandus, patched by manavortex. Maintained to keep compatibility with Furniture Catalogue / LFC
 
-- **This AddOn:** https://www.esoui.com/downloads/info1865-FurnitureShoppingListFurC2.0patch.html
+- **This AddOn:** https://www.esoui.com/downloads/info1865-FurnitureShoppingListpatched.html
 - **Original AddOn:** https://esoui.com/downloads/info1638-FurnitureShoppingList.html
 
 AddOn src files are in [./FurnitureShoppingList](./FurnitureShoppingList)
