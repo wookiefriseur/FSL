@@ -4,7 +4,7 @@
 ## AddOnVersion: 2000000
 ## Author: @noobanidus
 ## APIVersion: 101051 101052
-## DependsOn: LibCustomMenu>=730 LibFurnitureCatalogue>=1003000
+## DependsOn: LibCustomMenu>=730 LibFurnitureCatalogue>=1004000
 ## SavedVariables: FurnitureShoppingListSV
 
 locale\en.lua
