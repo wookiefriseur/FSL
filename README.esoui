@@ -7,7 +7,7 @@ All credits for FurnitureShoppingList go to @noobiandus, who is unfortunately mi
 
 [COLOR=wheat][SIZE=6]Links[/SIZE][/COLOR][LIST]
 [*][URL="https://github.com/wookiefriseur/FSL"]GitHub: source and issues[/URL]
-[*][URL="https://wookiefriseur.github.io/LFC/"]Web interface for creating lists compatible with FSL 2.0[/URL][/LIST][COLOR=wheat][SIZE=6]Depends on[/SIZE][/COLOR][LIST]
+[*][URL="https://wookiefriseur.github.io/LFC/"]Web interface for creating lists compatible with FSL[/URL][/LIST][COLOR=wheat][SIZE=6]Depends on[/SIZE][/COLOR][LIST]
 [*][URL="https://www.esoui.com/downloads/info4804-LibFurnitureCatalogue.html"]LibFurnitureCatalogue[/URL] (required)
 [*][URL="https://www.esoui.com/downloads/info1146-LibCustomMenu.html"]LibCustomMenu[/URL] (required)
 [*][URL="https://www.esoui.com/downloads/info1617-FurnitureCatalogue.html"]FurnitureCatalogue[/URL] (optional): add items from the catalogue, export lists to import here
@@ -17,7 +17,7 @@ All credits for FurnitureShoppingList go to @noobiandus, who is unfortunately mi
 [COLOR=wheat][SIZE=3]Add furnishings[/SIZE][/COLOR][LIST]
 [*]Item menues: right-click a craftable furnishing or blueprint -> [B]Add to shopping list[/B], then enter amount
 [*]Crafting stations: select the recipe and press the [B]Add to Shopping List[/B] hotkey
-[*][B]Import List[/B]: paste lines exported from FurnitureCatalogue or the web interface, or use plain item ids. Each craftable item is added once[/LIST][COLOR=wheat][SIZE=3]Main window[/SIZE][/COLOR][LIST]
+[*][B]Import List[/B]: paste lines exported from Furniture Catalogue or the web interface, or use plain item ids. Each craftable item is added once[/LIST][COLOR=wheat][SIZE=3]Main window[/SIZE][/COLOR][LIST]
 [*][B]Subtract Owned[/B]: show only materials that you are missing. [B]Show Full Need[/B] switches back
 [*][B]Print[/B]: pastes materials into chat or mail. Long text gets split so you can send each page separately.
 [*][B]Clear[/B]: empties the list
