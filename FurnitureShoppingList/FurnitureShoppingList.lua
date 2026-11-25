@@ -642,10 +642,16 @@ function FurnitureShoppingListAdd_Crafting()
 end
 
 function FurnitureShoppingListWindow:InventorySlot_ShowContextMenu(rowControl)
-  local bag, slot = ZO_Inventory_GetBagAndIndex(rowControl)
   local slotType = ZO_InventorySlot_GetType(rowControl)
 
-  local link = GetItemLink(bag, slot)
+  local link
+  if slotType == SLOT_TYPE_TRADING_HOUSE_ITEM_RESULT then
+    link = GetTradingHouseSearchResultItemLink(ZO_Inventory_GetSlotIndex(rowControl))
+  elseif slotType == SLOT_TYPE_TRADING_HOUSE_ITEM_LISTING then
+    link = GetTradingHouseListingItemLink(ZO_Inventory_GetSlotIndex(rowControl))
+  else
+    link = GetItemLink(ZO_Inventory_GetBagAndIndex(rowControl))
+  end
 
   if link and canShopFor(link) then
     zo_callLater(function()
